@@ -8,6 +8,12 @@ from _logger import create_logger
 SLEEP_TIME = 0.1
 
 
+class VideoRecorderInUseError(Exception):
+
+    def __init__(self):
+        Exception.__init__(self, "Video actively being recorded already")
+
+
 class VideoRecorder(threading.Thread):
 
     def __init__(self, device, frame_size=(640, 480)):
@@ -90,6 +96,9 @@ class VideoRecorder(threading.Thread):
                 break
 
     def record_to_file(self, video_filename, duration_in_sec=60, fps=20):
+
+        if self.recording:
+            raise VideoRecorderInUseError
 
         # creating the writer
         video_format = cv2.cv.CV_FOURCC('D', 'I', 'V', 'X')

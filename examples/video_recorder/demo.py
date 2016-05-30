@@ -1,5 +1,5 @@
 # import the recorder class
-from chemobot_tools.video_tools import VideoRecorder
+from chemobot_tools.video_recorder import VideoRecorder
 
 # create an instance with the device number, usually 0 if only one camera connected
 vidrec = VideoRecorder(0)

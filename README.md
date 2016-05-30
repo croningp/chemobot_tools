@@ -8,7 +8,7 @@ Each functionality comes with an example files in the examples folder. To test t
 
 video_recorder allows to record a video from a webcam into a file asynchronously. This mean you can keep doing things while the video is recorded.
 
-[Example and tutorial](examples/video_recorder/demo.py)
+[[Example and tutorial]](examples/video_recorder/demo.py)
 
 
 ### v4l2
@@ -26,4 +26,4 @@ Example commands are:
 
 This tool allow to start an experiment with always the same webcam config, this is particularly helpful when there is autofocus involved that should be disabled and set manually.
 
-[Example and tutorial](examples/v4l2/demo.py)
+[[Example and tutorial]](examples/v4l2/demo.py)

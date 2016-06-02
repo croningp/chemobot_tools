@@ -17,6 +17,22 @@ class V4L2(object):
     def __init__(self, device):
         self.device = device
 
+
+    def apply_control_config_from_file(self, control_config):
+        with open(control_configfile) as f:
+            return self.apply_config(json.load(f))
+
+    @classmethod
+    def from_config(cls, config):
+        instance = cls(config['device'])
+        instance.apply_control_config(config['control_config'])
+        return instance
+
+    @classmethod
+    def from_configfile(cls, configfile):
+        with open(configfile) as f:
+            return V4L2.from_config(json.load(f))
+
     def call_command(self, command):
         proc = Popen(command, stdout=PIPE)
         proc.wait()
@@ -67,10 +83,6 @@ class V4L2(object):
         command = self.forge_command(['-c', command_string])
         proc = self.call_command(command)
 
-    def apply_config(self, control_config):
+    def apply_control_config(self, control_config):
         for key, value in control_config.items():
             self.set_control_value(key, value)
-
-    def apply_config_from_file(self, control_configfile):
-        with open(control_configfile) as f:
-            return self.apply_config(json.load(f))

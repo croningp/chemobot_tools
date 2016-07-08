@@ -43,7 +43,7 @@ class VideoRecorder(threading.Thread):
             self.video_capture.release()
         if hasattr(self, "video_writer"):
             self.video_writer.release()
-            cv2.destroyAllWindows()
+        cv2.destroyAllWindows()
 
     def __del__(self):
         self.close()

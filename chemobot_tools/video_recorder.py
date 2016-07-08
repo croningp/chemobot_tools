@@ -29,10 +29,10 @@ class VideoCapture(threading.Thread):
 
         self.device = device
         self.frame_size = frame_size
-        self.frame = np.zeros((frame_size[1], frame_size[0], 3), dtype='uint8')
 
         self.open()
         self.start()
+        self.wait_until_ready()
 
     def open(self):
         self.logger.debug('Opening device {} at size {}'.format(self.device, self.frame_size))
@@ -63,6 +63,10 @@ class VideoCapture(threading.Thread):
                 self.frame = frame
                 self.lock.release()
         self.close()
+
+    def wait_until_ready(self):
+        while not hasattr(self, 'frame'):
+            time.sleep(SLEEP_TIME)
 
     def get_last_frame(self):
         self.lock.acquire()

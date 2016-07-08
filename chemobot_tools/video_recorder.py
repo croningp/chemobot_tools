@@ -1,7 +1,8 @@
 import cv2
 import time
-
 import threading
+
+import numpy as np
 
 from _logger import create_logger
 
@@ -12,6 +13,62 @@ class VideoRecorderInUseError(Exception):
 
     def __init__(self):
         Exception.__init__(self, "Video actively being recorded already")
+
+
+class VideoCapture(threading.Thread):
+    """
+    This class query frames as fast a possible for other programs to use
+    """
+    def __init__(self, device, frame_size=(640, 480)):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.interrupted = threading.Lock()
+        self.lock = threading.Lock()
+
+        self.logger = create_logger(self.__class__.__name__)
+
+        self.device = device
+        self.frame_size = frame_size
+        self.frame = np.zeros((frame_size[1], frame_size[0], 3), dtype='uint8')
+
+        self.open()
+        self.start()
+
+    def open(self):
+        self.logger.debug('Opening device {} at size {}'.format(self.device, self.frame_size))
+        self.video_capture = cv2.VideoCapture(self.device)
+        self.video_capture.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, self.frame_size[0])
+        self.video_capture.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, self.frame_size[1])
+
+    def close(self):
+        self.logger.debug('Closing device and all windows')
+        if hasattr(self, "video_capture"):
+            self.video_capture.release()
+
+    def __del__(self):
+        self.close()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+    def stop(self):
+        self.interrupted.release()
+
+    def run(self):
+        self.interrupted.acquire()
+        while self.interrupted.locked():
+            ret, frame = self.video_capture.read()
+            if ret:
+                self.lock.acquire()
+                self.frame = frame
+                self.lock.release()
+        self.close()
+
+    def get_last_frame(self):
+        self.lock.acquire()
+        frame = self.frame.copy()
+        self.lock.release()
+        return frame
 
 
 class VideoRecorder(threading.Thread):
@@ -26,21 +83,15 @@ class VideoRecorder(threading.Thread):
 
         self.device = device
         self.frame_size = frame_size
+        self.video_capture = VideoCapture(self.device, self.frame_size)
 
-        self.open()
         self.init()
         self.start()
 
-    def open(self):
-        self.logger.debug('Opening device {} at size {}'.format(self.device, self.frame_size))
-        self.video_capture = cv2.VideoCapture(self.device)
-        self.video_capture.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, self.frame_size[0])
-        self.video_capture.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, self.frame_size[1])
-
     def close(self):
         self.logger.debug('Closing device and all windows')
-        if hasattr(self, "video_capture"):
-            self.video_capture.release()
+        self.videocapture.close()
+        self.videocapture.join()
         if hasattr(self, "video_writer"):
             self.video_writer.release()
         cv2.destroyAllWindows()
@@ -57,7 +108,7 @@ class VideoRecorder(threading.Thread):
     def init(self):
         # starting the window and putting something in it so it is ready to work at descent speed, the first frame is slow to display
         cv2.namedWindow("video")
-        ret, frame = self.video_capture.read()
+        frame = self.video_capture.get_last_frame()
         cv2.imshow("video", frame)
         cv2.waitKey(1)
 
@@ -77,18 +128,19 @@ class VideoRecorder(threading.Thread):
 
     def _record(self):
         start_time = time.time()
-        while self.video_capture.isOpened():
+        while True:
             start_loop = time.time()
-            ret, frame = self.video_capture.read()
-            if ret:
-                cv2.imshow("video", frame)
-                self.video_writer.write(frame)
-                cv2.waitKey(1)  # needed for the display to work
 
-                # wait the appropriate time to stick with the fps
-                dt = time.time() - start_loop
-                wait_time = max(self.time_between_frame - dt, 0)
-                time.sleep(wait_time)
+            frame = self.video_capture.get_last_frame()
+            self.video_writer.write(frame)
+
+            cv2.imshow("video", frame)
+            cv2.waitKey(1)  # needed for the display to work
+
+            # wait the appropriate time to stick with the fps
+            dt = time.time() - start_loop
+            wait_time = max(self.time_between_frame - dt, 0)
+            time.sleep(wait_time)
 
             elapsed = time.time() - start_time
             if elapsed > self.duration_in_sec:

@@ -92,8 +92,8 @@ class VideoRecorder(threading.Thread):
 
     def close(self):
         self.logger.debug('Closing device and all windows')
-        self.videocapture.close()
-        self.videocapture.join()
+        self.video_capture.stop()
+        self.video_capture.join()
         if hasattr(self, "video_writer"):
             self.video_writer.release()
         cv2.destroyAllWindows()

@@ -1,7 +1,6 @@
 Thumbs.db
 *.pyc
 chemobot_tools.egg-info
-examples/video_recorder/video.avi
-/examples/v4l2/control_config.json
-/examples/droplet_tracking/video.avi
+
+*.avi
 /examples/droplet_tracking/video.json

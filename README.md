@@ -27,3 +27,9 @@ Example commands are:
 This tool allow to start an experiment with always the same webcam config, this is particularly helpful when there is autofocus involved that should be disabled and set manually.
 
 [[Example and tutorial]](examples/v4l2/demo.py)
+
+### droplet_tracking
+
+droplet_tracking is a serie of tool to analyse image and video of droplets
+
+- label_video is a tool to annotate video of droplet. [[Code Example]](examples/droplet_tracking/demo_label_video.py) [[Commands docs](docs/label_video_commands.md)]

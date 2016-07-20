@@ -17,9 +17,8 @@ class V4L2(object):
     def __init__(self, device):
         self.device = device
 
-
     def apply_control_config_from_file(self, control_config):
-        with open(control_configfile) as f:
+        with open(control_config) as f:
             return self.apply_config(json.load(f))
 
     @classmethod
@@ -81,7 +80,7 @@ class V4L2(object):
         """
         command_string = control_str + '=' + str(value)
         command = self.forge_command(['-c', command_string])
-        proc = self.call_command(command)
+        self.call_command(command)
 
     def apply_control_config(self, control_config):
         for key, value in control_config.items():

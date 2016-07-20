@@ -2,8 +2,6 @@ import cv2
 import time
 import threading
 
-import numpy as np
-
 from _logger import create_logger
 
 SLEEP_TIME = 0.1

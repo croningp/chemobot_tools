@@ -43,7 +43,7 @@ control_config = {
 }
 vidconf.apply_control_config(control_config)
 
-#cheking this went fine
+# cheking this went fine
 current_saturation_value = vidconf.get_control_value('saturation')
 print 'current saturation value is: {}'.format(current_saturation_value)
 current_contrast_value = vidconf.get_control_value('contrast')
@@ -57,7 +57,7 @@ original_control_config = {
 }
 vidconf.apply_control_config(original_control_config)
 
-#cheking this went fine
+# cheking this went fine
 current_saturation_value = vidconf.get_control_value('saturation')
 print 'current saturation value is: {}'.format(current_saturation_value)
 current_contrast_value = vidconf.get_control_value('contrast')

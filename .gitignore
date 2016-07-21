@@ -4,3 +4,4 @@ chemobot_tools.egg-info
 
 *.avi
 /examples/droplet_tracking/video.json
+*droplet_info.json

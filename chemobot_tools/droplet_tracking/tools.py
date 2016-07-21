@@ -200,3 +200,17 @@ def watershed(frame, debug=False):
         cv2.waitKey(WAITKEY_TIME)
 
     return watershed_island
+
+
+def contours_to_list(contours):
+    countours_list = []
+    for contour in contours:
+        countours_list.append(contour.tolist())
+    return countours_list
+
+
+def list_to_contours(countours_list):
+    contours = []
+    for countour_list in countours_list:
+        contours.append(np.array(countour_list, dtype=np.int32))
+    return countours_list

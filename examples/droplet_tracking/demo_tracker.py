@@ -1,14 +1,29 @@
 import time
 
 from chemobot_tools.droplet_tracking.droplet_tracker import process_video
+from chemobot_tools.droplet_tracking.pool_workers import PoolDropletTracker, create_default_tracker_config_from_folder
 
-start_time = time.time()
 
-droplet_info = process_video('video.avi', video_out='video_analysed.avi', debug=True, deep_debug=False)
+if __name__ == '__main__':
 
-# droplet_info = process_video('video2.avi', video_out='video2_analysed.avi', debug=True, deep_debug=False)
+    # # sequential
+    # start_time = time.time()
+    #
+    # droplet_info = process_video('0/video.avi', debug=True, deep_debug=False)
+    #
+    # elapsed = time.time() - start_time
+    # print 'It took {} seconds to analyse one video'.format(elapsed)
 
-# droplet_info = process_video('video3.avi', video_out='video3_analysed.avi', debug=True, deep_debug=False)
+    # parallel
+    start_time = time.time()
 
-elapsed = time.time() - start_time
-print 'It took {} seconds to analyse the video'.format(elapsed)
+    droptracker = PoolDropletTracker(verbose=True)
+
+    droptracker.add_task(create_default_tracker_config_from_folder('0'))  # need an abspath
+    droptracker.add_task(create_default_tracker_config_from_folder('1'))
+    droptracker.add_task(create_default_tracker_config_from_folder('2'))
+
+    droptracker.wait_until_idle()
+
+    elapsed = time.time() - start_time
+    print 'It took {} seconds to analyse 3 videos in parallel'.format(elapsed)

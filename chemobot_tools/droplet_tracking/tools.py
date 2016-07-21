@@ -213,4 +213,4 @@ def list_to_contours(countours_list):
     contours = []
     for countour_list in countours_list:
         contours.append(np.array(countour_list, dtype=np.int32))
-    return countours_list
+    return contours

@@ -5,8 +5,8 @@ import multiprocessing
 
 from collections import deque
 
-from droplet_tracker import DEFAULT_PROCESS_CONFIG
-from droplet_tracker import process_video
+from .droplet_tracker import DEFAULT_PROCESS_CONFIG
+from .droplet_tracker import process_video
 
 SLEEP_TIME = 0.1
 

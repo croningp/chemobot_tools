@@ -6,3 +6,4 @@ chemobot_tools.egg-info
 /examples/droplet_tracking/video.json
 *droplet_info.json
 *dish_info.json
+/examples/droplet_tracking/8/params.json

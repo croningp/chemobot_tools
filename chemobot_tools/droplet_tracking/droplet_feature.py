@@ -82,7 +82,8 @@ def statistics_from_frame_countours(contours):
             'compactness': compactness,
             'modification_ratio': modification_ratio,
             'moments': M,
-            'centroid': (centroid_x, centroid_y)
+            'centroid': (centroid_x, centroid_y),
+            'ellipse_angle': angle
         }
 
         frame_stats.append(stats)
@@ -251,12 +252,12 @@ def compute_high_level_frame_descriptor(droplets_statistics):
 
 def compute_ratio_of_frame_with_droplets(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats):
 
-    n_frame_wth_droplet = 0
+    n_frame_with_droplet = 0
     for stats in droplets_statistics:
         if len(stats) > 0:
-            n_frame_wth_droplet += 1
+            n_frame_with_droplet += 1
 
-    return float(n_frame_wth_droplet) / len(droplets_statistics)
+    return float(n_frame_with_droplet) / len(droplets_statistics)
 
 
 def compute_weighted_mean_speed(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats):
@@ -294,3 +295,31 @@ def compute_center_of_mass_spread(dish_info, droplets_statistics, high_level_fra
     dish_diameter = 2 * dish_info['dish_circle'][2]
 
     return spread / dish_diameter
+
+
+def compute_relative_perimeter_variation(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats):
+
+    means = [np.mean(stats['perimeter']) for stats in grouped_stats]
+    stds = [np.std(stats['perimeter']) for stats in grouped_stats]
+    relative_score = np.array(stds) / np.array(means)
+
+    weights = [len(stats['perimeter']) for stats in grouped_stats]
+
+    if weights.size == 0:
+        return 0
+
+    return np.average(relative_score, weights=weights)
+
+
+def compute_average_drolet_area(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats):
+
+    means = [np.mean(stats['area']) for stats in grouped_stats]
+
+    weights = [len(stats['area']) for stats in grouped_stats]
+
+    if weights.size == 0:
+        return 0
+
+    dish_area = np.pi * dish_info['dish_circle'][2] ** 2
+
+    return np.average(means, weights=weights) / dish_area

@@ -96,7 +96,7 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
         droplet_mask = tools.canny_droplet_detector(frame, arena_mask, config=process_config['canny_config'], debug=deep_debug)
 
         backsub_mask = backsub.apply(frame, None, backsub_learning_rate)
-        backsub_mask = cv2.bitwise_and(backsub_mask, arena_mask)
+        backsub_mask = cv2.bitwise_and(backsub_mask, dish_mask)
 
         if frame_count > backsub_delay:
             droplet_mask = cv2.bitwise_or(droplet_mask, backsub_mask)

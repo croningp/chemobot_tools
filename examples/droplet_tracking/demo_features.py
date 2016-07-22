@@ -16,7 +16,7 @@ for folder in folder_list:
     high_level_frame_stats = df.compute_high_level_frame_descriptor(droplets_statistics)
 
     droplets_ids = df.track_droplets(droplets_statistics, max_distance=40)
-    grouped_stats = df.group_stats_per_droplets_ids(droplets_statistics, droplets_ids, min_sequence_length=10)
+    grouped_stats = df.group_stats_per_droplets_ids(droplets_statistics, droplets_ids, min_sequence_length=20)
 
     ratio = df.compute_ratio_of_frame_with_droplets(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats)
 
@@ -26,6 +26,12 @@ for folder in folder_list:
 
     print '###\n{}'.format(folder)
     print ratio, speed, spread, 10000 * ratio * speed * spread
+
+    perim_var = df.compute_relative_perimeter_variation(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats)
+
+    area = df.compute_average_drolet_area(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats)
+
+    print ratio, perim_var, area, 10000 * ratio * perim_var * area
 
 # import matplotlib.pyplot as plt
 # import matplotlib.colors as colors

@@ -57,7 +57,7 @@ DEFAULT_PROCESS_CONFIG = {
 }
 
 
-def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_out=None, droplet_info_out=None, debug=False, deep_debug=False):
+def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_out=None, droplet_info_out=None, dish_info_out=None, debug=False, deep_debug=False):
 
     droplet_info = []
     droplet_info_list = []
@@ -65,6 +65,13 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
     dish_circle, dish_mask = tools.get_median_dish_from_video(video_filename, process_config['dish_config'])
 
     arena_circle, arena_mask = tools.create_dish_arena(dish_circle, dish_mask, process_config['arena_ratio'])
+
+    if dish_info_out is not None:
+        dish_info = {}
+        dish_info['dish_circle'] = [float(v) for v in dish_circle]
+        dish_info['arena_circle'] = [float(v) for v in arena_circle]
+        with open(dish_info_out, 'w') as f:
+            json.dump(dish_info, f)
 
     # open video to play with frames
     video_capture = cv2.VideoCapture(video_filename)
@@ -89,6 +96,7 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
         droplet_mask = tools.canny_droplet_detector(frame, arena_mask, config=process_config['canny_config'], debug=deep_debug)
 
         backsub_mask = backsub.apply(frame, None, backsub_learning_rate)
+        backsub_mask = cv2.bitwise_and(backsub_mask, arena_mask)
 
         if frame_count > backsub_delay:
             droplet_mask = cv2.bitwise_or(droplet_mask, backsub_mask)

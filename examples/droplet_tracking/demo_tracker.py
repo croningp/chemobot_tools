@@ -9,7 +9,7 @@ if __name__ == '__main__':
     # # sequential
     # start_time = time.time()
     #
-    # droplet_info = process_video('0/video.avi', debug=True, deep_debug=False)
+    # droplet_info = process_video('0/video.avi', debug=True, deep_debug=True)
     #
     # elapsed = time.time() - start_time
     # print 'It took {} seconds to analyse one video'.format(elapsed)
@@ -19,11 +19,10 @@ if __name__ == '__main__':
 
     droptracker = PoolDropletTracker(verbose=True)
 
-    droptracker.add_task(create_default_tracker_config_from_folder('0'))  # need an abspath
-    droptracker.add_task(create_default_tracker_config_from_folder('1'))
-    droptracker.add_task(create_default_tracker_config_from_folder('2'))
+    for i in range(6):
+        droptracker.add_task(create_default_tracker_config_from_folder(str(i)))  # need an abspath
 
     droptracker.wait_until_idle()
 
     elapsed = time.time() - start_time
-    print 'It took {} seconds to analyse 3 videos in parallel'.format(elapsed)
+    print 'It took {} seconds to analyse {} videos in parallel'.format(elapsed, i + 1)

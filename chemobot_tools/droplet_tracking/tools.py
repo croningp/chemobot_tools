@@ -69,7 +69,7 @@ def get_median_dish_from_video(video_filename, config=DEFAULT_DISH_CONFIG, frame
     # populated the mask
     cv2.circle(median_dish_mask, (median_dish_circle[0], median_dish_circle[1]), int(median_dish_circle[2]), 255, -1)  # white, filled circle
 
-    return median_dish_circle, median_dish_mask
+    return list(median_dish_circle), median_dish_mask
 
 
 def create_dish_arena(dish_circle, dish_mask, arena_dish_ratio=0.9, debug=False):

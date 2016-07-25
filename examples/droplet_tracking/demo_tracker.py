@@ -19,7 +19,7 @@ if __name__ == '__main__':
     # parallel
     start_time = time.time()
 
-    droptracker = PoolDropletTracker(verbose=True)
+    droptracker = PoolDropletTracker()
 
     folder_list = filetools.list_folders('.')
     folder_list.sort()

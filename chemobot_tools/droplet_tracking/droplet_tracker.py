@@ -48,7 +48,7 @@ def draw_frame_detection(frame, dish_circle, arena_circle, droplet_contours):
 
 DEFAULT_PROCESS_CONFIG = {
     'dish_config': tools.DEFAULT_DISH_CONFIG,
-    'arena_ratio': 0.8,
+    'arena_ratio': 0.9,
     'canny_config': tools.DEFAULT_CANNY_CONFIG,
     'mog_config': {
         'learning_rate': 0.005,
@@ -96,7 +96,7 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
         droplet_mask = tools.canny_droplet_detector(frame, arena_mask, config=process_config['canny_config'], debug=deep_debug)
 
         backsub_mask = backsub.apply(frame, None, backsub_learning_rate)
-        backsub_mask = cv2.bitwise_and(backsub_mask, dish_mask)
+        backsub_mask = cv2.bitwise_and(backsub_mask, arena_mask)
 
         if frame_count > backsub_delay:
             droplet_mask = cv2.bitwise_or(droplet_mask, backsub_mask)

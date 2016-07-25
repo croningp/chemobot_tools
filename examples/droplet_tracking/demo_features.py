@@ -1,37 +1,23 @@
-import os
+import time
 
 import filetools
 
-import chemobot_tools.droplet_tracking.droplet_feature as df
+from chemobot_tools.droplet_tracking.pool_workers import PoolDropletFeatures, create_default_features_config_from_folder
 
-folder_list = filetools.list_folders('.')
-folder_list.sort()
+if __name__ == '__main__':
 
-for folder in folder_list:
+    start_time = time.time()
 
-    droplet_info = df.load_video_contours_json(os.path.join(folder, 'droplet_info.json'))
-    dish_info = df.load_dish_info(os.path.join(folder, 'dish_info.json'))
+    dropfeatures = PoolDropletFeatures()
 
-    droplets_statistics = df.statistics_from_video_countours(droplet_info)
-    high_level_frame_stats = df.compute_high_level_frame_descriptor(droplets_statistics)
+    folder_list = filetools.list_folders('.')
+    for folder in folder_list:
+        dropfeatures.add_task(create_default_features_config_from_folder(folder))
 
-    droplets_ids = df.track_droplets(droplets_statistics, max_distance=40)
-    grouped_stats = df.group_stats_per_droplets_ids(droplets_statistics, droplets_ids, min_sequence_length=20)
+    dropfeatures.wait_until_idle()
 
-    ratio = df.compute_ratio_of_frame_with_droplets(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats)
-
-    speed = df.compute_weighted_mean_speed(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats)
-
-    spread = df.compute_center_of_mass_spread(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats)
-
-    print '###\n{}'.format(folder)
-    print ratio, speed, spread, 10000 * ratio * speed * spread
-
-    perim_var = df.compute_relative_perimeter_variation(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats)
-
-    area = df.compute_average_drolet_area(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats)
-
-    print ratio, perim_var, area, 10000 * ratio * perim_var * area
+    elapsed = time.time() - start_time
+    print 'It took {} seconds to extract features from {} videos in parallel'.format(elapsed, len(folder_list))
 
 # import matplotlib.pyplot as plt
 # import matplotlib.colors as colors

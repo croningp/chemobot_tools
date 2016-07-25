@@ -250,31 +250,34 @@ def compute_high_level_frame_descriptor(droplets_statistics):
     return high_level_frame_stats
 
 
-def compute_ratio_of_frame_with_droplets(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats):
+def compute_ratio_of_frame_with_droplets(droplets_statistics, grouped_stats):
 
-    n_frame_with_droplet = 0
-    for stats in droplets_statistics:
-        if len(stats) > 0:
-            n_frame_with_droplet += 1
+    frame_ids = []
+    for stats in grouped_stats:
+        frame_ids += stats['frame_id']
 
+    n_frame_with_droplet = len(set(frame_ids))  # set find unique value in frame_ids
+
+    # ratio between 0 and 1
     return float(n_frame_with_droplet) / len(droplets_statistics)
 
 
-def compute_weighted_mean_speed(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats):
+def compute_weighted_mean_speed(grouped_stats, dish_info, dish_diameter_mm, frame_per_seconds):
 
     if len(grouped_stats) == 0:
         return 0
 
     speeds = [np.mean(d['speed']) for d in grouped_stats]
     weights = [len(d['speed']) for d in grouped_stats]
-    weighted_mean_speed = np.average(speeds, weights=weights)
+    weighted_mean_speed_pixel = np.average(speeds, weights=weights)
 
-    dish_diameter = 2 * dish_info['dish_circle'][2]
+    dish_diameter_pixel = 2 * dish_info['dish_circle'][2]
 
-    return weighted_mean_speed / dish_diameter
+    # return in mm/s
+    return weighted_mean_speed_pixel / dish_diameter_pixel * dish_diameter_mm * frame_per_seconds
 
 
-def compute_center_of_mass_spread(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats):
+def compute_center_of_mass_spread(high_level_frame_stats, dish_info, dish_diameter_mm):
 
     positions = high_level_frame_stats['center_of_mass']
     weights = high_level_frame_stats['total_area']
@@ -290,14 +293,15 @@ def compute_center_of_mass_spread(dish_info, droplets_statistics, high_level_fra
     weighted_mean = np.average(positions, axis=0, weights=weights)
 
     dist_to_mean = cdist(positions, np.atleast_2d(weighted_mean), 'euclidean')
-    spread = np.average(dist_to_mean[:, 0], axis=0, weights=weights)
+    spread_pixel = np.average(dist_to_mean[:, 0], axis=0, weights=weights)
 
-    dish_diameter = 2 * dish_info['dish_circle'][2]
+    dish_diameter_pixel = 2 * dish_info['dish_circle'][2]
 
-    return spread / dish_diameter
+    # return in mm
+    return spread_pixel / dish_diameter_pixel * dish_diameter_mm
 
 
-def compute_relative_perimeter_variation(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats):
+def compute_relative_perimeter_variation(grouped_stats):
 
     means = [np.mean(stats['perimeter']) for stats in grouped_stats]
     stds = [np.std(stats['perimeter']) for stats in grouped_stats]
@@ -305,21 +309,55 @@ def compute_relative_perimeter_variation(dish_info, droplets_statistics, high_le
 
     weights = [len(stats['perimeter']) for stats in grouped_stats]
 
-    if weights.size == 0:
+    if len(weights) == 0:
         return 0
 
+    # no unit, relative to droplet size
     return np.average(relative_score, weights=weights)
 
 
-def compute_average_drolet_area(dish_info, droplets_statistics, high_level_frame_stats, grouped_stats):
+def compute_average_drolet_area(grouped_stats, dish_info, dish_diameter_mm):
 
     means = [np.mean(stats['area']) for stats in grouped_stats]
 
     weights = [len(stats['area']) for stats in grouped_stats]
 
-    if weights.size == 0:
+    if len(weights) == 0:
         return 0
 
-    dish_area = np.pi * dish_info['dish_circle'][2] ** 2
+    droplet_area_pixel = np.average(means, weights=weights)
+    dish_area_pixel = np.pi * dish_info['dish_circle'][2] ** 2
+    dish_area_mm = np.pi * dish_diameter_mm ** 2
 
-    return np.average(means, weights=weights) / dish_area
+    # return in mm2
+    return droplet_area_pixel / dish_area_pixel * dish_area_mm
+
+
+def compute_droplet_features(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, dish_diameter_mm=32, frame_per_seconds=20, features_out=None):
+
+        dish_info = load_dish_info(dish_info_filename)
+        droplet_info = load_video_contours_json(droplet_info_filename)
+
+        droplets_statistics = statistics_from_video_countours(droplet_info)
+        high_level_frame_stats = compute_high_level_frame_descriptor(droplets_statistics)
+
+        droplets_ids = track_droplets(droplets_statistics, max_distance=max_distance_tracking)
+        grouped_stats = group_stats_per_droplets_ids(droplets_statistics, droplets_ids, min_sequence_length=min_sequence_length)
+
+        features = {}
+
+        features['ratio_frame_active'] = compute_ratio_of_frame_with_droplets(droplets_statistics, grouped_stats)
+
+        features['average_speed'] = compute_weighted_mean_speed(grouped_stats, dish_info, dish_diameter_mm, frame_per_seconds)
+
+        features['average_spread'] = compute_center_of_mass_spread(high_level_frame_stats, dish_info, dish_diameter_mm)
+
+        features['average_perimeter_variation'] = compute_relative_perimeter_variation(grouped_stats)
+
+        features['average_area'] = compute_average_drolet_area(grouped_stats, dish_info, dish_diameter_mm)
+
+        if features_out is not None:
+            with open(features_out, 'w') as f:
+                json.dump(features, f)
+
+        return features

@@ -333,7 +333,10 @@ def compute_average_drolet_area(grouped_stats, dish_info, dish_diameter_mm):
     return droplet_area_pixel / dish_area_pixel * dish_area_mm
 
 
-def compute_droplet_features(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, dish_diameter_mm=32, frame_per_seconds=20, features_out=None):
+def compute_droplet_features(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, dish_diameter_mm=32, frame_per_seconds=20, features_out=None, verbose=False):
+
+        if verbose:
+            print '###\nProcessing droplet info {} ...'.format(droplet_info_filename)
 
         dish_info = load_dish_info(dish_info_filename)
         droplet_info = load_video_contours_json(droplet_info_filename)
@@ -359,5 +362,8 @@ def compute_droplet_features(dish_info_filename, droplet_info_filename, max_dist
         if features_out is not None:
             with open(features_out, 'w') as f:
                 json.dump(features, f)
+
+        if verbose:
+            print '###\nFinished processing droplet info {}.'.format(droplet_info_filename)
 
         return features

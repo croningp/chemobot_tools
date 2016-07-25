@@ -1,3 +1,4 @@
+import os
 import json
 
 import cv2
@@ -9,7 +10,7 @@ WAITKEY_TIME = 1
 
 DEFAULT_FRAME_CONFIG = {
     'dish_config': tools.DEFAULT_DISH_CONFIG,
-    'arena_ratio': 0.8,
+    'arena_ratio': 0.9,
     'canny_config': tools.DEFAULT_CANNY_CONFIG
 }
 
@@ -57,7 +58,10 @@ DEFAULT_PROCESS_CONFIG = {
 }
 
 
-def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_out=None, droplet_info_out=None, dish_info_out=None, debug=False, deep_debug=False):
+def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_out=None, droplet_info_out=None, dish_info_out=None, debug=False, deep_debug=False, verbose=False, debug_window_name='droplet_detection'):
+
+    if verbose:
+        print '###\nProcessing video {} ...'.format(video_filename)
 
     droplet_info = []
     droplet_info_list = []
@@ -116,7 +120,7 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
                 video_writer.write(plot_frame)
 
             if debug:
-                cv2.imshow("droplet_detection", plot_frame)
+                cv2.imshow(debug_window_name, plot_frame)
                 cv2.waitKey(WAITKEY_TIME)
 
         if deep_debug:
@@ -133,5 +137,13 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
     if droplet_info_out is not None:
         with open(droplet_info_out, 'w') as f:
             json.dump(droplet_info_list, f)
+
+    if debug:
+         cv2.destroyWindow(debug_window_name)
+         for _ in range(10):  # ensure it kills the window
+             cv2.waitKey(WAITKEY_TIME)
+
+    if verbose:
+        print '###\nFinished processing video {}.'.format(video_filename)
 
     return droplet_info

@@ -333,6 +333,18 @@ def compute_average_drolet_area(grouped_stats, dish_info, dish_diameter_mm):
     return droplet_area_pixel / dish_area_pixel * dish_area_mm
 
 
+def compute_average_deformation(grouped_stats):
+
+    means = [np.mean(stats['form_factor']) for stats in grouped_stats]
+
+    weights = [len(stats['form_factor']) for stats in grouped_stats]
+
+    if len(weights) == 0:
+        return 1
+
+    return np.average(means, weights=weights)
+
+
 def compute_droplet_features(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, dish_diameter_mm=32, frame_per_seconds=20, features_out=None, verbose=False):
 
         if verbose:
@@ -358,6 +370,8 @@ def compute_droplet_features(dish_info_filename, droplet_info_filename, max_dist
         features['average_perimeter_variation'] = compute_relative_perimeter_variation(grouped_stats)
 
         features['average_area'] = compute_average_drolet_area(grouped_stats, dish_info, dish_diameter_mm)
+
+        features['average_deformation'] = compute_average_deformation(grouped_stats)
 
         if features_out is not None:
             with open(features_out, 'w') as f:

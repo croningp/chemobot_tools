@@ -8,3 +8,6 @@ chemobot_tools.egg-info
 *dish_info.json
 *params.json
 *droplet_features.json
+*run_info.json
+/examples/droplet_vision/extracted
+/examples/droplet_vision/labelled

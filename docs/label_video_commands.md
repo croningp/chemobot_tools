@@ -3,7 +3,7 @@
 To start analyzing a video, run:
 
 ```python
-from chemobot_tools.droplet_tracking import label_video
+from chemobot_tools.droplet_labelling.video_labelling import label_video
 label_video('video.avi')
 ```
 

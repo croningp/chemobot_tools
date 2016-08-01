@@ -36,7 +36,7 @@ KEY_Q_CODE = ord('q')
 KEY_P_CODE = ord('p')
 KEY_L_CODE = ord('l')
 KEY_P_L_MOVE = 5
-MIN_SELECTION_WIDTH = 20
+MIN_SELECTION_WIDTH = 5
 MAX_SELECTION_WIDTH = 400
 DEFAULT_SELECTION_WIDTH = 50
 
@@ -293,10 +293,14 @@ def update_frame_id_from_database(frame_id, key_pressed, database):
     return frame_id
 
 
-def label_video(video_filename):
+def label_video(video_filename, window_event_selection=WINDOW_EVENT_SELECTION):
 
-    global frame_id, frame_increment_id, frame_id_selected, selection_width, selection_position
+    global frame_id, frame_increment_id, frame_id_selected, selection_width, selection_position, WINDOW_EVENT_SELECTION
 
+    #
+    WINDOW_EVENT_SELECTION = window_event_selection
+
+    #
     print("Labelling {}".format(video_filename))
 
     # loading frames in memory to be able to go back in time

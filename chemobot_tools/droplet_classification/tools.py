@@ -27,16 +27,13 @@ def get_all_img_from_folder(folderpath, img_ext='.png'):
     return all_img, all_img_path
 
 
-def transform_img(rgb_img):
-    return cv2.cvtColor(rgb_img, cv2.COLOR_RGB2HLS)
-    # return rgb_img
-    # return cv2.cvtColor(rgb_img, cv2.COLOR_RGB2HSV)
-    # return cv2.cvtColor(rgb_img, cv2.COLOR_RGB2LAB)
+def transform_img(bgr_img):
+    return cv2.cvtColor(bgr_img, cv2.COLOR_BGR2HLS)
 
 
-def compute_descriptor(rgb_img, size_desc, mask=None):
+def compute_descriptor(bgr_img, size_desc, mask=None):
 
-    transformed_img = transform_img(rgb_img)
+    transformed_img = transform_img(bgr_img)
 
     hist_1 = cv2.calcHist([transformed_img], [0, 1], mask, [size_desc, size_desc], [0, 256, 0, 256])
     hist_2 = cv2.calcHist([transformed_img], [1, 2], mask, [size_desc, size_desc], [0, 256, 0, 256])
@@ -50,10 +47,10 @@ def compute_descriptor(rgb_img, size_desc, mask=None):
     return hists
 
 
-def compute_descriptors_for_img_list(rgb_img_list, size_desc, mask_list=None):
+def compute_descriptors_for_img_list(bgr_img_list, size_desc, mask_list=None):
 
     descriptors = []
-    for i, img in enumerate(rgb_img_list):
+    for i, img in enumerate(bgr_img_list):
 
         if mask_list is not None:
             mask = mask_list[i]

@@ -47,9 +47,9 @@ class DropletClassifier(object):
 
         for i, info in enumerate(self.class_info):
 
-            rgb_img_list, rgb_img_list_path = get_all_img_from_folder(info['path'])
+            bgr_img_list, bgr_img_list_path = get_all_img_from_folder(info['path'])
 
-            descriptors = compute_descriptors_for_img_list(rgb_img_list, size_desc=size_desc)
+            descriptors = compute_descriptors_for_img_list(bgr_img_list, size_desc=size_desc)
 
             if words_size is not None:
                 vocab = descriptors_to_vocabulary(descriptors, words_size=words_size)
@@ -60,7 +60,7 @@ class DropletClassifier(object):
             vocab_list = list(vocab)
             X += vocab_list
             y += [i] * len(vocab_list)
-            img_paths += rgb_img_list_path
+            img_paths += bgr_img_list_path
 
         return np.array(X), np.array(y), img_paths
 
@@ -99,13 +99,13 @@ class DropletClassifier(object):
 
         return class_name, float(class_proba)
 
-    def predict_img(self, rgb_img):
-        descriptor = compute_descriptor(rgb_img, size_desc=self.size_desc)
+    def predict_img(self, bgr_img):
+        descriptor = compute_descriptor(bgr_img, size_desc=self.size_desc)
         return self.predict(descriptor)
 
-    def predict_file(self, rgb_img_filename):
-        rgb_img = cv2.imread(rgb_img_filename)
-        return self.predict_img(rgb_img)
+    def predict_file(self, bgr_img_filename):
+        bgr_img = cv2.imread(bgr_img_filename)
+        return self.predict_img(bgr_img)
 
     def save_dropclass_info_to_json(self, filename):
         dropclass_info = {}

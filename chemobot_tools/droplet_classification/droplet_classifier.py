@@ -6,6 +6,8 @@ import numpy as np
 
 import cv2
 
+from sklearn.metrics import accuracy_score
+
 from .tools import get_all_img_from_folder
 from .tools import compute_descriptor
 from .tools import compute_descriptors_for_img_list
@@ -37,19 +39,20 @@ class DropletClassifier(object):
         new_cls.load_clf_from_file(os.path.join(foldername, CLF_FILENAME))
         return new_cls
 
-    def get_training_data(self):
+    def get_training_data(self, size_desc, words_size=None):
 
         X = []
         y = []
+        img_paths = []
 
         for i, info in enumerate(self.class_info):
 
-            rgb_img_list = get_all_img_from_folder(info['path'])
+            rgb_img_list, rgb_img_list_path = get_all_img_from_folder(info['path'])
 
-            descriptors = compute_descriptors_for_img_list(rgb_img_list, size_desc=self.size_desc)
+            descriptors = compute_descriptors_for_img_list(rgb_img_list, size_desc=size_desc)
 
-            if self.words_size is not None:
-                vocab = descriptors_to_vocabulary(descriptors, words_size=self.words_size)
+            if words_size is not None:
+                vocab = descriptors_to_vocabulary(descriptors, words_size=words_size)
             else:
                 vocab = descriptors
 
@@ -57,8 +60,9 @@ class DropletClassifier(object):
             vocab_list = list(vocab)
             X += vocab_list
             y += [i] * len(vocab_list)
+            img_paths += rgb_img_list_path
 
-        return np.array(X), np.array(y)
+        return np.array(X), np.array(y), img_paths
 
     def load_clf(self, clf):
         self.clf = clf
@@ -74,9 +78,16 @@ class DropletClassifier(object):
             pickle.dump(self.clf,  f)
 
     def train(self, clf):
-        X, y = self.get_training_data()
-        clf.fit(X, y)
+        X_train, y_train, _ = self.get_training_data(self.size_desc, self.words_size)
+        clf.fit(X_train, y_train)
         self.load_clf(clf)
+
+    def accuracy(self):
+        if not hasattr(self, 'clf'):
+            raise Exception('clf not defined yet')
+        # we test with the raw data, before going reducing to vocab via kmeans, if applied
+        X_test, y_test, _ = self.get_training_data(self.size_desc, None)
+        return accuracy_score(self.clf.predict(X_test), y_test)
 
     def predict(self, descriptor):
         if not hasattr(self, 'clf'):
@@ -107,7 +118,7 @@ class DropletClassifier(object):
 
     def save(self, foldername):
         if not os.path.exists(foldername):
-            os.makedirs(dest_folder)
+            os.makedirs(foldername)
 
         self.save_clf_to_file(os.path.join(foldername, CLF_FILENAME))
         self.save_dropclass_info_to_json(os.path.join(foldername, DROPCLASS_INFO))

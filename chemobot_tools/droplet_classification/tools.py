@@ -10,6 +10,7 @@ from sklearn.cluster import KMeans
 def get_all_img_from_folder(folderpath, img_ext='.png'):
 
     all_img = []
+    all_img_path = []
     for (dirpath, dirnames, filenames) in os.walk(folderpath):
         for filename in filenames:
             if filename.endswith(img_ext):
@@ -21,21 +22,25 @@ def get_all_img_from_folder(folderpath, img_ext='.png'):
                     raw_input()
 
                 all_img.append(img)
+                all_img_path.append(img_filename)
 
-    return all_img
+    return all_img, all_img_path
 
 
-def rgb_to_hsv(rgb_img):
-    return cv2.cvtColor(rgb_img, cv2.COLOR_RGB2HSV)
+def transform_img(rgb_img):
+    return cv2.cvtColor(rgb_img, cv2.COLOR_RGB2HLS)
+    # return rgb_img
+    # return cv2.cvtColor(rgb_img, cv2.COLOR_RGB2HSV)
+    # return cv2.cvtColor(rgb_img, cv2.COLOR_RGB2LAB)
 
 
 def compute_descriptor(rgb_img, size_desc, mask=None):
 
-    hsv_img = rgb_to_hsv(rgb_img)
+    transformed_img = transform_img(rgb_img)
 
-    hist_1 = cv2.calcHist([hsv_img], [0, 1], mask, [size_desc, size_desc], [0, 256, 0, 256])
-    hist_2 = cv2.calcHist([hsv_img], [1, 2], mask, [size_desc, size_desc], [0, 256, 0, 256])
-    hist_3 = cv2.calcHist([hsv_img], [2, 0], mask, [size_desc, size_desc], [0, 256, 0, 256])
+    hist_1 = cv2.calcHist([transformed_img], [0, 1], mask, [size_desc, size_desc], [0, 256, 0, 256])
+    hist_2 = cv2.calcHist([transformed_img], [1, 2], mask, [size_desc, size_desc], [0, 256, 0, 256])
+    hist_3 = cv2.calcHist([transformed_img], [2, 0], mask, [size_desc, size_desc], [0, 256, 0, 256])
 
     hist_ocv = np.array([hist_1.flatten(), hist_2.flatten(), hist_3.flatten()])
     hists = hist_ocv.flatten()

@@ -11,7 +11,7 @@ if __name__ == '__main__':
     # sequential
     start_time = time.time()
 
-    droplet_info = process_video('videos/6/video.avi', debug=True, deep_debug=True)
+    droplet_info = process_video('videos/2/video.avi', debug=True, deep_debug=True)
 
     elapsed = time.time() - start_time
     print 'It took {} seconds to analyse one video'.format(elapsed)

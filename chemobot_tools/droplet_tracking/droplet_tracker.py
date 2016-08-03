@@ -10,7 +10,7 @@ WAITKEY_TIME = 1
 
 DEFAULT_FRAME_CONFIG = {
     'dish_detect_config': tools.DEFAULT_DISH_CONFIG,
-    'arena_ratio': 0.9,
+    'arena_ratio': 0.85,
     'canny_hypothesis_config': tools.DEFAULT_CANNY_HYPOTHESIS_CONFIG,
     'hough_hypothesis_config': tools.DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG
 }
@@ -50,12 +50,12 @@ def draw_frame_detection(frame, dish_circle, arena_circle, droplet_contours):
 DEFAULT_PROCESS_CONFIG = {
     'dish_detect_config': tools.DEFAULT_DISH_CONFIG,
     'dish_frame_spacing': 100,
-    'arena_ratio': 0.9,
+    'arena_ratio': 0.85,
     'canny_hypothesis_config': tools.DEFAULT_CANNY_HYPOTHESIS_CONFIG,
     'hough_hypothesis_config': tools.DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG,
     'mog_hypothesis_config': {
         'learning_rate': 0.005,
-        'delay_by_n_frame': 100,
+        'delay_by_n_frame': 50,
         'width_ratio': 1.5
     },
     'resolve_hypothesis_config': tools.DEFAULT_HYPOTHESIS_CONFIG
@@ -116,9 +116,8 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
             cv2.imshow("backsub_mask", backsub_mask)
             cv2.waitKey(WAITKEY_TIME)
 
-        print frame_count
         if frame_count > backsub_delay:  # apply only after backsub_delay
-            # watershed_backsub_mask = tools.watershed(backsub_mask)
+            watershed_backsub_mask = tools.watershed(backsub_mask)
             hypotheses += tools.mask_droplet_hypotheses(frame, backsub_mask, width_ratio=backsub_width_ratio, debug=deep_debug)
 
         # hypothesis solving

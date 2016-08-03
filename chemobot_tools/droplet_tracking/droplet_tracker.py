@@ -9,26 +9,26 @@ WAITKEY_TIME = 1
 
 
 DEFAULT_FRAME_CONFIG = {
-    'dish_config': tools.DEFAULT_DISH_CONFIG,
+    'dish_detect_config': tools.DEFAULT_DISH_CONFIG,
     'arena_ratio': 0.9,
-    'canny_config': tools.DEFAULT_CANNY_CONFIG
+    'canny_hypothesis_config': tools.DEFAULT_CANNY_HYPOTHESIS_CONFIG,
+    'hough_hypothesis_config': tools.DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG
 }
 
 
-def detect_droplet_frame(frame, config=DEFAULT_FRAME_CONFIG, prior_mask=None, debug=False, deep_debug=False):
+def detect_droplet_frame(frame, droplet_classifier, config=DEFAULT_FRAME_CONFIG, class_name='droplet', debug=False, deep_debug=False):
 
-    dish_circle, dish_mask = tools.find_petri_dish(frame, config=config['dish_config'], debug=deep_debug)
+    # dish detection
+    dish_circle, dish_mask = tools.find_petri_dish(frame, config=config['dish_detect_config'], debug=deep_debug)
 
     arena_circle, arena_mask = tools.create_dish_arena(dish_circle, dish_mask, config['arena_ratio'])
 
-    droplet_mask = tools.canny_droplet_detector(frame, arena_mask, config=config['canny_config'], debug=deep_debug)
+    # hypothesis making
+    hypotheses = tools.canny_droplet_hypotheses(frame, detect_mask=arena_mask, config=config['canny_hypothesis_config'])
+    hypotheses += tools.hough_droplet_hypotheses(frame, detect_circle=arena_circle, config=config['hough_hypothesis_config'])
 
-    if prior_mask is not None:
-        droplet_mask = cv2.bitwise_or(droplet_mask, prior_mask)
-
-    watershed_island_mask = tools.watershed(droplet_mask, debug=deep_debug)
-
-    droplet_contours, _ = cv2.findContours(watershed_island_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    # hypothesis solving
+    droplet_contours = tools.hypotheses_to_droplet_contours(frame, hypotheses, droplet_classifier, class_name=class_name, debug=deep_debug)
 
     if debug:
         plot_frame = draw_frame_detection(frame, dish_circle, arena_circle, droplet_contours)
@@ -48,13 +48,17 @@ def draw_frame_detection(frame, dish_circle, arena_circle, droplet_contours):
 
 
 DEFAULT_PROCESS_CONFIG = {
-    'dish_config': tools.DEFAULT_DISH_CONFIG,
+    'dish_detect_config': tools.DEFAULT_DISH_CONFIG,
+    'dish_frame_spacing': 100,
     'arena_ratio': 0.9,
-    'canny_config': tools.DEFAULT_CANNY_CONFIG,
-    'mog_config': {
+    'canny_hypothesis_config': tools.DEFAULT_CANNY_HYPOTHESIS_CONFIG,
+    'hough_hypothesis_config': tools.DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG,
+    'mog_hypothesis_config': {
         'learning_rate': 0.005,
-        'delay_by_n_frame': 100
-    }
+        'delay_by_n_frame': 100,
+        'width_ratio': 1.5
+    },
+    'resolve_hypothesis_config': tools.DEFAULT_HYPOTHESIS_CONFIG
 }
 
 
@@ -66,10 +70,12 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
     droplet_info = []
     droplet_info_list = []
 
-    dish_circle, dish_mask = tools.get_median_dish_from_video(video_filename, process_config['dish_config'])
+    # dish detection accross frame
+    dish_circle, dish_mask = tools.get_median_dish_from_video(video_filename, process_config['dish_detect_config'], frame_spacing=process_config['dish_frame_spacing'])
 
     arena_circle, arena_mask = tools.create_dish_arena(dish_circle, dish_mask, process_config['arena_ratio'])
 
+    # save dish info
     if dish_info_out is not None:
         dish_info = {}
         dish_info['dish_circle'] = [float(v) for v in dish_circle]
@@ -79,7 +85,6 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
 
     # open video to play with frames
     video_capture = cv2.VideoCapture(video_filename)
-
     ret, frame = video_capture.read()
 
     # creating the writer
@@ -90,25 +95,36 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
 
     # prepare BackgroundSubtractorMOG
     backsub = cv2.BackgroundSubtractorMOG()
-    backsub_learning_rate = process_config['mog_config']['learning_rate']
-    backsub_delay = process_config['mog_config']['delay_by_n_frame']
+    backsub_learning_rate = process_config['mog_hypothesis_config']['learning_rate']
+    backsub_delay = process_config['mog_hypothesis_config']['delay_by_n_frame']
+    backsub_width_ratio = process_config['mog_hypothesis_config']['width_ratio']
 
     frame_count = 0
     while ret:
         frame_count += 1
 
-        droplet_mask = tools.canny_droplet_detector(frame, arena_mask, config=process_config['canny_config'], debug=deep_debug)
-
+        # hypothesis making
+        # canny
+        hypotheses = tools.canny_droplet_hypotheses(frame, detect_mask=arena_mask, config=process_config['canny_hypothesis_config'], debug=deep_debug)
+        # hough
+        hypotheses += tools.hough_droplet_hypotheses(frame, detect_circle=arena_circle, config=process_config['hough_hypothesis_config'], debug=deep_debug)
+        # background suppression
         backsub_mask = backsub.apply(frame, None, backsub_learning_rate)
         backsub_mask = cv2.bitwise_and(backsub_mask, arena_mask)
 
-        if frame_count > backsub_delay:
-            droplet_mask = cv2.bitwise_or(droplet_mask, backsub_mask)
+        if deep_debug:
+            cv2.imshow("backsub_mask", backsub_mask)
+            cv2.waitKey(WAITKEY_TIME)
 
-        watershed_island_mask = tools.watershed(droplet_mask, debug=deep_debug)
+        print frame_count
+        if frame_count > backsub_delay:  # apply only after backsub_delay
+            # watershed_backsub_mask = tools.watershed(backsub_mask)
+            hypotheses += tools.mask_droplet_hypotheses(frame, backsub_mask, width_ratio=backsub_width_ratio, debug=deep_debug)
 
-        droplet_contours, _ = cv2.findContours(watershed_island_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        # hypothesis solving
+        droplet_contours = tools.hypotheses_to_droplet_contours(frame, hypotheses, config=process_config['resolve_hypothesis_config'], debug=deep_debug)
 
+        # storing
         droplet_info.append(droplet_contours)
         droplet_info_list.append(tools.contours_to_list(droplet_contours))
 
@@ -122,10 +138,6 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
             if debug:
                 cv2.imshow(debug_window_name, plot_frame)
                 cv2.waitKey(WAITKEY_TIME)
-
-        if deep_debug:
-            cv2.imshow("backsub_mask", backsub_mask)
-            cv2.waitKey(WAITKEY_TIME)
 
         # next frame
         ret, frame = video_capture.read()

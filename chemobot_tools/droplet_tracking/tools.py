@@ -48,14 +48,12 @@ def find_petri_dish(frame, config=DEFAULT_DISH_CONFIG, debug=False):
 def get_median_dish_from_video(video_filename, config=DEFAULT_DISH_CONFIG, frame_spacing=100):
     # open video to play with frames
     video_capture = cv2.VideoCapture(video_filename)
-
-    dish_circles = []
-
     ret, frame = video_capture.read()
 
     # we define an empty mask for the dish
     median_dish_mask = np.zeros((frame.shape[0], frame.shape[1]), np.uint8)
 
+    dish_circles = []
     while ret:
         dish_circle, _ = find_petri_dish(frame, config=config)
         dish_circles.append(dish_circle)
@@ -155,7 +153,7 @@ DEFAULT_DROPLET_HOUGH_CONFIG = {
 }
 
 
-def hough_droplet_detector(frame, mask=None, config=DEFAULT_DROPLET_HOUGH_CONFIG, debug=False):
+def hough_droplet_detector(frame, detect_circle=None, config=DEFAULT_DROPLET_HOUGH_CONFIG, debug=False):
 
     gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -166,8 +164,18 @@ def hough_droplet_detector(frame, mask=None, config=DEFAULT_DROPLET_HOUGH_CONFIG
         dp += 1
         circles = cv2.HoughCircles(gray_frame, cv2.cv.CV_HOUGH_GRADIENT, dp, config['minDist'], **config['hough_config'])
 
-    droplet_circles = circles[0][:config['max_detected']]  # out in order of accumulator, we take only the n best ones
-    # [x, y, radius]
+    # we keep only circle inside detect_circle and only max max_detected of them
+    # circles are in order of accumulator, best first
+    droplet_circles = []
+    for circle in circles[0]:
+        if detect_circle is None:
+            droplet_circles.append(circle)
+        else:
+            dist_to_center = np.linalg.norm(circle[0:2] - detect_circle[0:2])
+            if dist_to_center <= detect_circle[2]:
+                droplet_circles.append(circle)
+        if len(droplet_circles) == config['max_detected']:
+            break
 
     # we define a mask
     droplet_mask = np.zeros((frame.shape[0], frame.shape[1]), np.uint8)
@@ -195,9 +203,11 @@ def watershed(frame, debug=False):
     http://docs.opencv.org/master/d3/db4/tutorial_py_watershed.html
     """
 
-    dilate_kernel = (5, 5)
-    sure_background = cv2.dilate(frame, dilate_kernel)
+    dilate_kernel = np.ones((5,5), np.uint8)
+    opening = cv2.morphologyEx(frame, cv2.MORPH_OPEN, dilate_kernel, iterations=2)
+    sure_background = cv2.dilate(opening, dilate_kernel, iterations=3)
 
+    #
     dist_transform = cv2.distanceTransform(frame, cv2.cv.CV_DIST_L2, maskSize=3)
 
     dist_transform -= dist_transform.min()
@@ -205,7 +215,7 @@ def watershed(frame, debug=False):
         dist_transform /= float(dist_transform.max())
     dist_transform = np.uint8(255 * dist_transform)
 
-    threshold_lower = 150
+    threshold_lower = 180
     threshold_upper = 255
     _, sure_foreground = cv2.threshold(dist_transform, threshold_lower, threshold_upper, cv2.THRESH_BINARY)
     sure_foreground = np.uint8(sure_foreground)
@@ -262,32 +272,171 @@ def list_to_contours(countours_list):
         contours.append(np.array(countour_list, dtype=np.int32))
     return contours
 
-def contour_to_droplet_hypothesis(contour, frame, width_ratio=1.5):
-    x, y, w, h = cv2.boundingRect(contour)
-    circle = (x, y, max(w, h))
-    return circle_to_droplet_hypothesis(circle, frame, width_ratio)
 
-def circle_to_droplet_hypothesis(circle, frame, width_ratio=1.5):
+def contour_to_mask(contour, frame):
+    mask = np.zeros((frame.shape[0], frame.shape[1]), np.uint8)
+    cv2.fillPoly(mask, pts =[contour], color=(255))
+    return mask
+
+
+def contour_to_droplet_hypothesis(contour, frame, mask=None, width_ratio=1.5):
+    x, y, w, h = cv2.boundingRect(contour)
+    r = max(w, h) / 2.0
+    square = (x+r, y+r, 2*r)
+    return square_to_droplet_hypothesis(square, frame, mask, width_ratio)
+
+
+def circle_to_droplet_hypothesis(circle, frame, mask=None, width_ratio=1.5):
     x  = circle[0]
     y  = circle[1]
     r  = circle[2]
+    square = (x, y, 2*r)
+    return square_to_droplet_hypothesis(square, frame, mask, width_ratio)
+
+
+def square_to_droplet_hypothesis(square, frame, mask=None, width_ratio=1.5):
+    # square is (x_center, y_center, width),
+    x = square[0]
+    y = square[1]
+    w = square[2]
+    shift = (w / 2.0) * width_ratio
+
+    #
+    square_shift = (x, y, 2.0 * shift)
 
     # extract the img to be later detected by the classifier
-    img = frame[y - r*width_ratio:y + r*width_ratio, x - r*width_ratio:x + r*width_ratio]
+    img = frame[y-shift:y+shift, x-shift:x+shift]
 
+    # check image valid
     if img.size == 0:
-        return None, None
+        return None, None, None
 
-    # we define a mask from the contour taken using an automatic threshold method
-    mask = np.zeros((frame.shape[0], frame.shape[1]), np.uint8)
+    # img must be square
+    if img.shape[0] != img.shape[1]:
+        return None, None, None
 
-    threshold_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    if mask is None:
+        # we define a mask from the contour taken using an automatic threshold method
+        mask = np.zeros((frame.shape[0], frame.shape[1]), np.uint8)
 
-    _, threshold_mask = cv2.threshold(threshold_img, np.min(threshold_img), np.max(threshold_img), cv2.THRESH_OTSU)
+        threshold_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    threshold_mask[threshold_mask > 0] = 255
-    threshold_mask = cv2.bitwise_not(threshold_mask)
+        _, threshold_mask = cv2.threshold(threshold_img, np.min(threshold_img), np.max(threshold_img), cv2.THRESH_OTSU)
 
-    mask[y - r*width_ratio:y + r*width_ratio, x - r*width_ratio:x + r*width_ratio] = threshold_mask[:, :]
+        threshold_mask[threshold_mask > 0] = 255
+        threshold_mask = cv2.bitwise_not(threshold_mask)
 
-    return img, mask
+        mask[y-shift:y+shift, x-shift:x+shift] = threshold_mask[:, :]
+
+    return img, mask, square_shift
+
+
+def mask_droplet_hypotheses(frame, droplet_mask, width_ratio=1.5, debug=False):
+
+    droplet_contours, _ = cv2.findContours(droplet_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+    hypotheses = []
+    for contour in droplet_contours:
+        # we do not let the contour_to_droplet_hypothesis function look for the mask by threshold but directly provide the mask to use
+        countour_mask = contour_to_mask(contour, frame)
+
+        img, mask, square_shift = contour_to_droplet_hypothesis(contour, frame, mask=countour_mask, width_ratio=width_ratio)
+
+        if img is not None:
+            hypotheses.append((img, mask, square_shift))
+
+    return hypotheses
+
+
+DEFAULT_CANNY_HYPOTHESIS_CONFIG = {
+    'canny_config': DEFAULT_CANNY_CONFIG,
+    'width_ratio': 1.5
+}
+
+
+def canny_droplet_hypotheses(frame, detect_mask=None, config=DEFAULT_CANNY_HYPOTHESIS_CONFIG, debug=False):
+
+    droplet_mask = canny_droplet_detector(frame, mask=detect_mask, config=config['canny_config'], debug=debug)
+
+    watershed_droplet_mask = watershed(droplet_mask, debug=debug)
+
+    hypotheses = mask_droplet_hypotheses(frame, watershed_droplet_mask, width_ratio=config['width_ratio'], debug=debug)
+
+    return hypotheses
+
+
+DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG = {
+    'hough_config': DEFAULT_DROPLET_HOUGH_CONFIG,
+    'width_ratio': 1.5
+}
+
+
+def hough_droplet_hypotheses(frame, detect_circle=None, config=DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG, debug=False):
+
+    droplet_circles, _ = hough_droplet_detector(frame, detect_circle=detect_circle, config=config['hough_config'], debug=debug)
+
+    hypotheses = []
+    for circle in droplet_circles:
+        img, mask, square_shift = circle_to_droplet_hypothesis(circle, frame, mask=None, width_ratio=config['width_ratio'])
+
+        if img is not None:
+            hypotheses.append((img, mask, square_shift))
+
+    return hypotheses
+
+
+from ..droplet_classification import DEFAULT_DROPLET_CLASSIFIER
+
+DEFAULT_HYPOTHESIS_CONFIG = {
+    'droplet_classifier': DEFAULT_DROPLET_CLASSIFIER,
+    'class_name': 'droplet'
+}
+
+
+def hypotheses_to_droplet_contours(frame, hypotheses, config=DEFAULT_HYPOTHESIS_CONFIG, debug=False):
+
+        #read config
+        droplet_classifier = config['droplet_classifier']
+        class_name = config['class_name']
+
+        # prepare mask
+        droplet_mask = np.zeros((frame.shape[0], frame.shape[1]), np.uint8)
+
+        hypothesis_frame = frame.copy()
+        for (img, mask, square) in hypotheses:
+            #
+            cls_name, cls_proba = droplet_classifier.predict_img(img)
+            if cls_name == class_name:
+                droplet_mask = cv2.bitwise_or(droplet_mask, mask)
+
+            if debug:
+                if cls_name == class_name:
+                    color = (0,255,0)  # Green
+                else:
+                    color = (0,0,255)  # Red
+                # draw the dish circle
+                shift = square[2] / 2.0
+                x1 = int(square[0] - shift)
+                y1 = int(square[1] - shift)
+                x2 = int(square[0] + shift)
+                y2 = int(square[1] + shift)
+                cv2.rectangle(hypothesis_frame, (x1, y1), (x2, y2), color, 1)
+
+        # watershed
+        watershed_droplet_mask = watershed(droplet_mask)
+
+        # contours
+        droplet_contours, _ = cv2.findContours(watershed_droplet_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+        if debug:
+            cv2.imshow('hypotheses', hypothesis_frame)
+            cv2.imshow('droplet_mask', droplet_mask)
+
+            contour_frame = frame.copy()
+            cv2.drawContours(contour_frame, droplet_contours, -1, (0, 255, 0))
+            cv2.imshow('droplet_contours', contour_frame)
+
+            # wait to display
+            cv2.waitKey(WAITKEY_TIME)
+
+        return droplet_contours

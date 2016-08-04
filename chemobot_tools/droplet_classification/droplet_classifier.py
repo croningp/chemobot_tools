@@ -93,6 +93,9 @@ class DropletClassifier(object):
         if not hasattr(self, 'clf'):
             raise Exception('clf not defined yet')
 
+        # ensure 2D for new version of sklearn
+        descriptor = np.array(descriptor).reshape(1, -1)
+
         class_id = self.clf.predict(descriptor)
         class_proba = self.clf.predict_proba(descriptor)[0][class_id]
         class_name = self.class_info[class_id]['name']

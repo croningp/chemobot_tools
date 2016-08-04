@@ -20,7 +20,7 @@ class PoolTemplate(threading.Thread):
         self.interrupted = threading.Lock()
 
         self.config_waiting = deque()
-        self.task_ongoing = deque([None] * n_jobs, maxlen=n_jobs)
+        self.task_ongoing = [None] * n_jobs
         self.pool = multiprocessing.Pool(processes=n_jobs)
 
         self.start()
@@ -55,16 +55,17 @@ class PoolTemplate(threading.Thread):
         self.interrupted.acquire()
         while self.interrupted.locked():
             if len(self.config_waiting) > 0:
-                # if video ongoing is full, wait
-                if self.task_ongoing[0] is not None:
-                    self.task_ongoing[0].wait()
+                for i, task in enumerate(self.task_ongoing):
+                    if task is None or task.ready():
 
-                config = self.config_waiting.popleft()
+                        config = self.config_waiting.popleft()
+                        func, args, kwds = self.handle_config(config)
 
-                func, args, kwds = self.handle_config(config)
+                        print 'Processing {} on pool {}'.format(args[0], i)
 
-                proc = self.pool.apply_async(func, args=args, kwds=kwds)
-                self.task_ongoing.append(proc)
+                        proc = self.pool.apply_async(func, args=args, kwds=kwds)
+                        self.task_ongoing[i] = proc
+                        break
 
             time.sleep(SLEEP_TIME)
         self.close()

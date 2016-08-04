@@ -12,7 +12,8 @@ DEFAULT_FRAME_CONFIG = {
     'dish_detect_config': tools.DEFAULT_DISH_CONFIG,
     'arena_ratio': 0.85,
     'canny_hypothesis_config': tools.DEFAULT_CANNY_HYPOTHESIS_CONFIG,
-    'hough_hypothesis_config': tools.DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG
+    'hough_hypothesis_config': tools.DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG,
+    'blob_hypothesis_config': tools.DEFAULT_DROPLET_BLOB_HYPOTHESIS_CONFIG,
 }
 
 
@@ -24,8 +25,12 @@ def detect_droplet_frame(frame, droplet_classifier, config=DEFAULT_FRAME_CONFIG,
     arena_circle, arena_mask = tools.create_dish_arena(dish_circle, dish_mask, config['arena_ratio'])
 
     # hypothesis making
-    hypotheses = tools.canny_droplet_hypotheses(frame, detect_mask=arena_mask, config=config['canny_hypothesis_config'])
-    hypotheses += tools.hough_droplet_hypotheses(frame, detect_circle=arena_circle, config=config['hough_hypothesis_config'])
+    # canny
+    hypotheses = tools.canny_droplet_hypotheses(frame, detect_mask=arena_mask, config=process_config['canny_hypothesis_config'], debug=deep_debug)
+    # hough
+    hypotheses += tools.hough_droplet_hypotheses(frame, detect_circle=arena_circle, config=process_config['hough_hypothesis_config'], debug=deep_debug)
+    # blob
+    hypotheses += tools.blob_droplet_hypotheses(frame, detect_circle=arena_circle, config=process_config['blob_hypothesis_config'], debug=deep_debug)
 
     # hypothesis solving
     droplet_contours = tools.hypotheses_to_droplet_contours(frame, hypotheses, droplet_classifier, class_name=class_name, debug=deep_debug)
@@ -53,6 +58,7 @@ DEFAULT_PROCESS_CONFIG = {
     'arena_ratio': 0.85,
     'canny_hypothesis_config': tools.DEFAULT_CANNY_HYPOTHESIS_CONFIG,
     'hough_hypothesis_config': tools.DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG,
+    'blob_hypothesis_config': tools.DEFAULT_DROPLET_BLOB_HYPOTHESIS_CONFIG,
     'mog_hypothesis_config': {
         'learning_rate': 0.005,
         'delay_by_n_frame': 50,
@@ -108,6 +114,8 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
         hypotheses = tools.canny_droplet_hypotheses(frame, detect_mask=arena_mask, config=process_config['canny_hypothesis_config'], debug=deep_debug)
         # hough
         hypotheses += tools.hough_droplet_hypotheses(frame, detect_circle=arena_circle, config=process_config['hough_hypothesis_config'], debug=deep_debug)
+        # blob
+        hypotheses += tools.blob_droplet_hypotheses(frame, detect_circle=arena_circle, config=process_config['blob_hypothesis_config'], debug=deep_debug)
         # background suppression
         backsub_mask = backsub.apply(frame, None, backsub_learning_rate)
         backsub_mask = cv2.bitwise_and(backsub_mask, arena_mask)

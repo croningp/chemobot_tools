@@ -187,10 +187,71 @@ def hough_droplet_detector(frame, detect_circle=None, config=DEFAULT_DROPLET_HOU
         plot_frame = frame.copy()
         for drop_circle in droplet_circles:
             cv2.circle(plot_frame, (drop_circle[0], drop_circle[1]), int(drop_circle[2]), (0, 0, 255), 3)
-        cv2.imshow("droplet_circles", plot_frame)
+        cv2.imshow("hough_droplet_circles", plot_frame)
 
         # draw the mask
-        cv2.imshow("droplet_circles_mask", droplet_mask)
+        cv2.imshow("hough_droplet_circles_mask", droplet_mask)
+
+        # wait to display
+        cv2.waitKey(WAITKEY_TIME)
+
+    return droplet_circles, droplet_mask
+
+###
+DEFAULT_DROPLET_BLOB_CONFIG = {
+    'minThreshold': 10,
+    'maxThreshold': 200,
+    'filterByArea': True,
+    'minArea': 50,
+    'filterByCircularity': True,
+    'minCircularity': 0.1,
+    'filterByConvexity': True,
+    'minConvexity': 0.8,
+    'filterByInertia': True,
+    'minInertiaRatio': 0.01,
+}
+
+
+def blob_droplet_detector(frame, detect_circle=None, config=DEFAULT_DROPLET_BLOB_CONFIG, debug=False):
+
+    params = cv2.SimpleBlobDetector_Params()
+    for k, v in DEFAULT_DROPLET_BLOB_CONFIG.items():
+        setattr(params, k, v)
+
+    # Create a detector with the parameters
+    detector = cv2.SimpleBlobDetector(params)
+
+    # Detect blobs.
+    keypoints = detector.detect(frame)
+
+    # we keep only blobs inside detect_circle and make then circles t conform with other methods
+    droplet_circles = []
+    for keypoint in keypoints:
+        x = int(keypoint.pt[0])
+        y = int(keypoint.pt[1])
+        r = int(keypoint.size)
+        circle = np.array([x, y, r])
+        if detect_circle is None:
+            droplet_circles.append(circle)
+        else:
+            dist_to_center = np.linalg.norm(circle[0:2] - detect_circle[0:2])
+            if dist_to_center <= detect_circle[2]:
+                droplet_circles.append(circle)
+
+    # we define a mask
+    droplet_mask = np.zeros((frame.shape[0], frame.shape[1]), np.uint8)
+    for drop_circle in droplet_circles:
+        cv2.circle(droplet_mask, (drop_circle[0], drop_circle[1]), int(drop_circle[2]), 255, -1)  # white, filled circle
+
+    if debug:
+        # draw the dish circle
+        plot_frame = frame.copy()
+        for drop_circle in droplet_circles:
+            cv2.circle(plot_frame, (drop_circle[0], drop_circle[1]), int(drop_circle[2]), (0, 0, 255), 3)
+        cv2.imshow("blob_droplet_circles", plot_frame)
+
+        # draw the mask
+        cv2.imshow("blob_droplet_circles_mask", droplet_mask)
 
         # wait to display
         cv2.waitKey(WAITKEY_TIME)
@@ -215,7 +276,7 @@ def watershed(frame, debug=False):
         dist_transform /= float(dist_transform.max())
     dist_transform = np.uint8(255 * dist_transform)
 
-    threshold_lower = 180
+    threshold_lower = 150
     threshold_upper = 255
     _, sure_foreground = cv2.threshold(dist_transform, threshold_lower, threshold_upper, cv2.THRESH_BINARY)
     sure_foreground = np.uint8(sure_foreground)
@@ -383,6 +444,33 @@ def hough_droplet_hypotheses(frame, detect_circle=None, config=DEFAULT_DROPLET_H
             hypotheses.append((img, mask, square_shift))
 
     return hypotheses
+
+
+DEFAULT_DROPLET_BLOB_HYPOTHESIS_CONFIG = {
+    'blob_config': DEFAULT_DROPLET_BLOB_CONFIG,
+    'width_ratio': 1.5
+}
+
+def blob_droplet_hypotheses(frame, detect_circle=None, config=DEFAULT_DROPLET_BLOB_HYPOTHESIS_CONFIG, debug=False):
+
+    droplet_circles, _ = blob_droplet_detector(frame, detect_circle=detect_circle, config=config['blob_config'], debug=debug)
+
+    hypotheses = []
+    for circle in droplet_circles:
+        img, mask, square_shift = circle_to_droplet_hypothesis(circle, frame, mask=None, width_ratio=config['width_ratio'])
+
+        if img is not None:
+            hypotheses.append((img, mask, square_shift))
+
+    return hypotheses
+
+
+from ..droplet_classification import DEFAULT_DROPLET_CLASSIFIER
+
+DEFAULT_HYPOTHESIS_CONFIG = {
+    'droplet_classifier': DEFAULT_DROPLET_CLASSIFIER,
+    'class_name': 'droplet'
+}
 
 
 from ..droplet_classification import DEFAULT_DROPLET_CLASSIFIER

@@ -9,24 +9,24 @@ from chemobot_tools.droplet_tracking.pool_workers import PoolDropletTracker, cre
 if __name__ == '__main__':
 
     # sequential
-    start_time = time.time()
-
-    droplet_info = process_video('videos/2/video.avi', debug=True, deep_debug=True)
-
-    elapsed = time.time() - start_time
-    print 'It took {} seconds to analyse one video'.format(elapsed)
-
-    # parallel
     # start_time = time.time()
     #
-    # droptracker = PoolDropletTracker()
-    #
-    # folder_list = filetools.list_folders('.')
-    # folder_list.sort()
-    # for folder in folder_list:
-    #     droptracker.add_task(create_default_tracker_config_from_folder(folder))  # need an abspath
-    #
-    # droptracker.wait_until_idle()
+    # droplet_info = process_video('videos/11/video.avi', debug=True, deep_debug=True)
     #
     # elapsed = time.time() - start_time
-    # print 'It took {} seconds to analyse {} videos in parallel'.format(elapsed, len(folder_list))
+    # print 'It took {} seconds to analyse one video'.format(elapsed)
+
+    # parallel
+    start_time = time.time()
+
+    droptracker = PoolDropletTracker()
+
+    folder_list = filetools.list_folders('videos')
+    folder_list.sort()
+    for folder in folder_list:
+        droptracker.add_task(create_default_tracker_config_from_folder(folder))  # need an abspath
+
+    droptracker.wait_until_idle()
+
+    elapsed = time.time() - start_time
+    print 'It took {} seconds to analyse {} videos in parallel'.format(elapsed, len(folder_list))

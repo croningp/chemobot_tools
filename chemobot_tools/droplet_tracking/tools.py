@@ -11,7 +11,6 @@ DEFAULT_DISH_CONFIG = {
     'hough_config': {}
 }
 
-
 def find_petri_dish(frame, config=DEFAULT_DISH_CONFIG, debug=False):
 
     gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # gray scale required for HoughCircles
@@ -64,7 +63,7 @@ def get_median_dish_from_video(video_filename, config=DEFAULT_DISH_CONFIG, frame
 
     median_dish_circle = np.median(dish_circles, axis=0)
 
-    # populated the mask
+    # populate the mask
     cv2.circle(median_dish_mask, (median_dish_circle[0], median_dish_circle[1]), int(median_dish_circle[2]), 255, -1)  # white, filled circle
 
     return list(median_dish_circle), median_dish_mask

@@ -88,7 +88,9 @@ def create_default_tracker_config_from_folder(foldername, debug=True):
         'video_out': os.path.join(foldername, 'video_analysed.avi'),
         'droplet_info_out': os.path.join(foldername, 'droplet_info.json'),
         'dish_info_out': os.path.join(foldername, 'dish_info.json'),
-        'debug': debug
+        'debug': debug,
+        'debug_window_name': os.path.basename(foldername),
+        'verbose': True
     }
     return tracker_config
 
@@ -114,15 +116,22 @@ class PoolDropletTracker(PoolTemplate):
         return func, args, kwds
 
 
-def create_default_features_config_from_folder(foldername):
+def create_default_features_config_from_folder(foldername, debug=True):
     features_config = {
         'dish_info_filename': os.path.join(foldername, 'dish_info.json'),
         'droplet_info_filename': os.path.join(foldername, 'droplet_info.json'),
         'max_distance_tracking': 40,
         'min_sequence_length': 20,
+        'join_min_frame_dist': 1,
+        'join_max_frame_dist': 10,
         'dish_diameter_mm': 32,
         'frame_per_seconds': 20,
-        'features_out': os.path.join(foldername, 'droplet_features.json')
+        'features_out': os.path.join(foldername, 'droplet_features.json'),
+        'video_in': os.path.join(foldername, 'video.avi'),
+        'video_out': os.path.join(foldername, 'video_tracking.avi'),
+        'debug': debug,
+        'debug_window_name': os.path.basename(foldername),
+        'verbose': True
     }
     return features_config
 

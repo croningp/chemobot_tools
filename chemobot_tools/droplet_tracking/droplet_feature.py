@@ -1,4 +1,5 @@
 import copy
+import time
 import json
 
 import cv2
@@ -518,8 +519,10 @@ def compute_average_circularity_variation(grouped_stats):
 
 def compute_droplet_features(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, join_min_frame_dist=1, join_max_frame_dist=10, dish_diameter_mm=32, frame_per_seconds=20, features_out=None, video_in=None,  video_out=None, debug=False, debug_window_name='droplet_sequence', verbose=False):
 
+    start_time = time.time()
+
     if verbose:
-        print '###\nExtractinf features from {} ...'.format(droplet_info_filename)
+        print '###\nExtracting features from {} ...'.format(droplet_info_filename)
 
     # getting basic info
     dish_info, droplets_statistics, high_level_frame_stats, droplets_ids, grouped_stats = aggregate_droplet_info(dish_info_filename, droplet_info_filename, max_distance_tracking=max_distance_tracking, min_sequence_length=min_sequence_length, join_min_frame_dist=join_min_frame_dist, join_max_frame_dist=join_max_frame_dist)
@@ -546,7 +549,9 @@ def compute_droplet_features(dish_info_filename, droplet_info_filename, max_dist
         with open(features_out, 'w') as f:
             json.dump(features, f)
 
+    elapsed = time.time() - start_time
+
     if verbose:
-        print '###\nFinished processing droplet info {}.'.format(droplet_info_filename)
+        print '###\nFinished processing droplet info {} in {} seconds.'.format(droplet_info_filename, elapsed)
 
     return features

@@ -470,21 +470,6 @@ def compute_center_of_mass_spread(high_level_frame_stats, dish_info, dish_diamet
     return spread_pixel / dish_diameter_pixel * dish_diameter_mm
 
 
-def compute_relative_perimeter_variation(grouped_stats):
-
-    means = [np.mean(stats['perimeter']) for stats in grouped_stats]
-    stds = [np.std(stats['perimeter']) for stats in grouped_stats]
-    relative_score = np.array(stds) / np.array(means)
-
-    weights = [len(stats['perimeter']) for stats in grouped_stats]
-
-    if len(weights) == 0:
-        return 0
-
-    # no unit, relative to droplet size
-    return np.average(relative_score, weights=weights)
-
-
 def compute_average_drolet_area(grouped_stats, dish_info, dish_diameter_mm):
 
     means = [np.mean(stats['area']) for stats in grouped_stats]
@@ -502,7 +487,7 @@ def compute_average_drolet_area(grouped_stats, dish_info, dish_diameter_mm):
     return droplet_area_pixel / dish_area_pixel * dish_area_mm
 
 
-def compute_average_deformation(grouped_stats):
+def compute_average_circularity(grouped_stats):
 
     means = [np.mean(stats['form_factor']) for stats in grouped_stats]
 
@@ -511,7 +496,22 @@ def compute_average_deformation(grouped_stats):
     if len(weights) == 0:
         return 1
 
+    # circularity unit between 0 (non circular) and 1 (perfect circle)
     return np.average(means, weights=weights)
+
+
+def compute_average_circularity_variation(grouped_stats):
+
+    stds = [np.std(stats['form_factor']) for stats in grouped_stats]
+
+    weights = [len(stats['form_factor']) for stats in grouped_stats]
+
+    if len(weights) == 0:
+        return 0
+
+    # std circularity
+    return np.average(stds, weights=weights)
+
 
 
 ### ALL
@@ -525,7 +525,7 @@ def compute_droplet_features(dish_info_filename, droplet_info_filename, max_dist
     dish_info, droplets_statistics, high_level_frame_stats, droplets_ids, grouped_stats = aggregate_droplet_info(dish_info_filename, droplet_info_filename, max_distance_tracking=max_distance_tracking, min_sequence_length=min_sequence_length)
 
     #
-    generate_tracking_info_video(video_in, grouped_stats, video_out=video_out, debug=debug, debug_window_name='droplet_detection')
+    generate_tracking_info_video(video_in, grouped_stats, video_out=video_out, debug=debug, debug_window_name=debug_window_name)
 
     #
     features = {}
@@ -536,11 +536,11 @@ def compute_droplet_features(dish_info_filename, droplet_info_filename, max_dist
 
     features['average_spread'] = compute_center_of_mass_spread(high_level_frame_stats, dish_info, dish_diameter_mm)
 
-    features['average_perimeter_variation'] = compute_relative_perimeter_variation(grouped_stats)
-
     features['average_area'] = compute_average_drolet_area(grouped_stats, dish_info, dish_diameter_mm)
 
-    features['average_deformation'] = compute_average_deformation(grouped_stats)
+    features['average_circularity'] = compute_average_circularity(grouped_stats)
+
+    features['average_circularity_variation'] = compute_average_circularity_variation(grouped_stats)
 
     if features_out is not None:
         with open(features_out, 'w') as f:

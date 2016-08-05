@@ -54,7 +54,7 @@ def draw_frame_detection(frame, dish_circle, arena_circle, droplet_contours):
 
 DEFAULT_PROCESS_CONFIG = {
     'dish_detect_config': tools.DEFAULT_DISH_CONFIG,
-    'dish_frame_spacing': 100,
+    'dish_frame_spacing': 1,
     'arena_ratio': 0.85,
     'canny_hypothesis_config': tools.DEFAULT_CANNY_HYPOTHESIS_CONFIG,
     'hough_hypothesis_config': tools.DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG,

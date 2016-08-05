@@ -31,6 +31,7 @@ if __name__ == '__main__':
     dropfeatures = PoolDropletFeatures()
 
     folder_list = filetools.list_folders('videos')
+    folder_list.sort()
     for folder in folder_list:
         dropfeatures.add_task(create_default_features_config_from_folder(folder))
 

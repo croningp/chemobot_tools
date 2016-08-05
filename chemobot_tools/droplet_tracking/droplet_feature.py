@@ -1,3 +1,4 @@
+import copy
 import json
 
 import cv2
@@ -6,6 +7,8 @@ import numpy as np
 from scipy.spatial.distance import cdist
 
 from .tools import list_to_contours
+
+WAITKEY_TIME = 1
 
 
 def load_json(filename):
@@ -47,7 +50,7 @@ def statistics_from_frame_countours(contours):
             equi_diameter = np.sqrt(4 * area / np.pi)
 
             _, radius = cv2.minEnclosingCircle(contour)
-            _, (MA, ma), angle = cv2.fitEllipse(contour)
+            center, (MA, ma), angle = cv2.fitEllipse(contour)
 
             x, y, w, h = cv2.boundingRect(contour)
             aspect_ratio = float(w) / h
@@ -69,7 +72,8 @@ def statistics_from_frame_countours(contours):
 
         # save
         stats = {
-            'position': (x, y),
+            'position': center,
+            'bounding_rect': (x, y, w, h),
             'perimeter': perimeter,
             'area': area,
             'radius': radius,
@@ -161,7 +165,7 @@ def find_min_idx(dist_mat):
     return row[0], col[0], min_value
 
 
-def group_stats_per_droplets_ids(droplets_statistics, droplets_ids, min_sequence_length=3):
+def group_stats_per_droplets_ids(droplets_statistics, droplets_ids, min_sequence_length=20, min_frame_dist=1, max_frame_dist=20, max_position_dist=40, verbose=True):
 
     # create empty_stat as list to fill them
     stat_keys = {}
@@ -190,7 +194,16 @@ def group_stats_per_droplets_ids(droplets_statistics, droplets_ids, min_sequence
                 grouped_stats[group_id][k].append(v)
             grouped_stats[group_id]['frame_id'].append(i)
 
+    if verbose:
+        print 'Found {} droplet sequences'.format(len(grouped_stats))
+
     grouped_stats = clean_grouped_stats(grouped_stats, min_sequence_length)
+    if verbose:
+        print 'Cleaned down to {} droplet sequences'.format(len(grouped_stats))
+
+    grouped_stats = join_grouped_stats(grouped_stats, min_frame_dist, max_frame_dist, max_position_dist)
+    if verbose:
+        print 'Joined to reach {} droplet sequences'.format(len(grouped_stats))
 
     complement_grouped_stats(grouped_stats)
 
@@ -209,6 +222,84 @@ def clean_grouped_stats(grouped_stats, min_sequence_length):
     return new_grouped_stats
 
 
+def bind_stats(stats1, stats2):
+    stats1 = copy.deepcopy(stats1)
+    stats2 = copy.deepcopy(stats2)
+
+    joined_stats = stats1
+
+    frame_end = stats1['frame_id'][-1]
+    frame_re_start = stats2['frame_id'][0]
+
+    # fill the frame gap with same values as end of stats1
+    # arbitrary, we do not have the info, so better not try to make up anything, linear transition often don't make sense
+    frames_to_bind = range(frame_end+1, frame_re_start)
+    for i, frame_id in enumerate(frames_to_bind):
+        for key, value in joined_stats.items():
+            if key == 'frame_id':
+                joined_stats[key].append(frame_id)
+            else:
+                joined_stats[key].append(value[-1])
+
+    # add stats2
+    for key, value in stats2.items():
+        joined_stats[key] += value
+
+    return joined_stats
+
+
+def join_grouped_stats(grouped_stats, min_frame_dist=1, max_frame_dist=20, max_position_dist=40):
+
+    # geeting a bunch of info from the group
+    start_frame_id = [ds['frame_id'][0] for ds in grouped_stats]
+    end_frame_id = [ds['frame_id'][-1] for ds in grouped_stats]
+    start_position = [np.array(ds['position'][0]) for ds in grouped_stats]
+    end_position = [np.array(ds['position'][-1]) for ds in grouped_stats]
+
+    # make it useful format
+    start_id = np.atleast_2d(start_frame_id).T
+    end_id = np.atleast_2d(end_frame_id).T
+    start_position = np.atleast_2d(start_position)
+    end_position = np.atleast_2d(end_position)
+
+    # compute frame distance between tail and head of droplet sequence
+    sequence_frame_dist = cdist(start_id, end_id, lambda s, e: s-e)
+
+    # check the one that satisfies condition
+    min_dist_frame = sequence_frame_dist > min_frame_dist
+    max_dist_frame = sequence_frame_dist < max_frame_dist
+    valid_frame_dist = np.logical_and(min_dist_frame, max_dist_frame)
+
+    # compute distance between tail and head of group
+    sequence_position_dist = cdist(start_position, end_position, 'euclidean')
+    # chech the valid ones
+    valid_position_dist = sequence_position_dist < max_position_dist
+
+    # find the indices that are satisfies both
+    valid_start, valid_end = np.where(np.logical_and(valid_frame_dist, valid_position_dist))
+
+    #explore the valid one, by ordre of frame distance
+    ok_frame_dist = sequence_frame_dist[valid_start, valid_end]
+    sort_id = np.argsort(ok_frame_dist)
+    # if any join ending group to starting group
+    if sort_id.size > 0:
+        # we take the first in the list ordered by frame distance
+        index = 0
+        # the one that ends is the one to bind with the one that starts
+        stats1 = grouped_stats[valid_end[sort_id[index]]]
+        stats2 = grouped_stats[valid_start[sort_id[index]]]
+        joined_stats = bind_stats(stats1, stats2)
+        # we replace the one that ended with its extended version
+        grouped_stats[valid_end[sort_id[index]]] = joined_stats
+        # and delete the other one from the list
+        del(grouped_stats[valid_start[sort_id[index]]])
+
+        # Then we do everything again until no more valid group to bind
+        grouped_stats = join_grouped_stats(grouped_stats)
+
+    return grouped_stats
+
+
 def complement_grouped_stats(grouped_stats):
 
     for drop_stats in grouped_stats:
@@ -217,11 +308,11 @@ def complement_grouped_stats(grouped_stats):
         delta_positions = np.diff(positions, axis=0)
 
         speed = np.linalg.norm(delta_positions, axis=1)  # euclidian distance between droplet
-        drop_stats['speed'] = speed
+        drop_stats['speed'] = list(speed)
         drop_stats['x_for_speed'] = drop_stats['frame_id'][1:]
 
         acceleration = np.diff(speed)
-        drop_stats['acceleration'] = acceleration
+        drop_stats['acceleration'] = list(acceleration)
         drop_stats['x_for_acceleration'] = drop_stats['x_for_speed'][1:]
 
 
@@ -249,6 +340,84 @@ def compute_high_level_frame_descriptor(droplets_statistics):
 
     return high_level_frame_stats
 
+
+def aggregate_droplet_info(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, join_min_frame_dist=1, join_max_frame_dist=20):
+
+    # getting basic info
+    dish_info = load_dish_info(dish_info_filename)
+    droplet_info = load_video_contours_json(droplet_info_filename)
+
+    droplets_statistics = statistics_from_video_countours(droplet_info)
+    high_level_frame_stats = compute_high_level_frame_descriptor(droplets_statistics)
+
+    droplets_ids = track_droplets(droplets_statistics, max_distance=max_distance_tracking)
+    grouped_stats = group_stats_per_droplets_ids(droplets_statistics, droplets_ids, min_sequence_length=min_sequence_length, min_frame_dist=join_min_frame_dist, max_frame_dist=join_max_frame_dist, max_position_dist=max_distance_tracking)
+
+    return dish_info, droplets_statistics, high_level_frame_stats, droplets_ids, grouped_stats
+
+
+### VISU GROUPING
+
+
+def generate_tracking_info_frame(frame, frame_count, grouped_stats, debug=True, debug_window_name='droplet_sequence'):
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+
+    plot_frame = frame.copy()
+    for i, drop_stats in enumerate(grouped_stats):
+        if frame_count in drop_stats['frame_id']:
+            frame_index = drop_stats['frame_id'].index(frame_count)
+            drop_id = str(i)
+            drop_pos = drop_stats['position'][frame_index]
+            x = int(drop_pos[0])
+            y = int(drop_pos[1])
+
+            cv2.putText(plot_frame, drop_id, (x, y), font, 0.75, (255,255,255), 2)
+            cv2.line(plot_frame, (x-5, y), (x+5, y), (0,255,0))
+            cv2.line(plot_frame, (x, y-5), (x, y+5), (0,255,0))
+
+    if debug:
+        cv2.imshow(debug_window_name, plot_frame)
+        cv2.waitKey(WAITKEY_TIME)
+
+    return plot_frame
+
+
+def generate_tracking_info_video(video_filename, grouped_stats, video_out=None, pause=False, debug=True, debug_window_name='droplet_sequence'):
+    # open video to play with frames
+    video_capture = cv2.VideoCapture(video_filename)
+    ret, frame = video_capture.read()
+
+    # creating the writer
+    if video_out is not None:
+        video_format = cv2.cv.CV_FOURCC('D', 'I', 'V', 'X')
+        fps = 20
+        video_writer = cv2.VideoWriter(video_out, video_format, fps, (frame.shape[1], frame.shape[0]))
+
+    frame_count = 0
+    while ret:
+        plot_frame = generate_tracking_info_frame(frame, frame_count, grouped_stats, debug=debug, debug_window_name=debug_window_name)
+
+        if video_out is not None:
+            video_writer.write(plot_frame)
+
+        if pause:
+            raw_input()
+
+        ret, frame = video_capture.read()
+        frame_count += 1
+
+    video_capture.release()
+    if video_out is not None:
+        video_writer.release()
+
+    if debug:
+         cv2.destroyWindow(debug_window_name)
+         for _ in range(10):  # ensure it kills the window
+             cv2.waitKey(WAITKEY_TIME)
+
+
+### FEATURES
 
 def compute_ratio_of_frame_with_droplets(droplets_statistics, grouped_stats):
 
@@ -345,39 +514,39 @@ def compute_average_deformation(grouped_stats):
     return np.average(means, weights=weights)
 
 
-def compute_droplet_features(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, dish_diameter_mm=32, frame_per_seconds=20, features_out=None, verbose=False):
+### ALL
 
-        if verbose:
-            print '###\nProcessing droplet info {} ...'.format(droplet_info_filename)
+def compute_droplet_features(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, join_min_frame_dist=1, join_max_frame_dist=10, dish_diameter_mm=32, frame_per_seconds=20, features_out=None, video_in=None,  video_out=None, debug=False, debug_window_name='droplet_sequence', verbose=False):
 
-        dish_info = load_dish_info(dish_info_filename)
-        droplet_info = load_video_contours_json(droplet_info_filename)
+    if verbose:
+        print '###\nExtractinf features from {} ...'.format(droplet_info_filename)
 
-        droplets_statistics = statistics_from_video_countours(droplet_info)
-        high_level_frame_stats = compute_high_level_frame_descriptor(droplets_statistics)
+    # getting basic info
+    dish_info, droplets_statistics, high_level_frame_stats, droplets_ids, grouped_stats = aggregate_droplet_info(dish_info_filename, droplet_info_filename, max_distance_tracking=max_distance_tracking, min_sequence_length=min_sequence_length)
 
-        droplets_ids = track_droplets(droplets_statistics, max_distance=max_distance_tracking)
-        grouped_stats = group_stats_per_droplets_ids(droplets_statistics, droplets_ids, min_sequence_length=min_sequence_length)
+    #
+    generate_tracking_info_video(video_in, grouped_stats, video_out=video_out, debug=debug, debug_window_name='droplet_detection')
 
-        features = {}
+    #
+    features = {}
 
-        features['ratio_frame_active'] = compute_ratio_of_frame_with_droplets(droplets_statistics, grouped_stats)
+    features['ratio_frame_active'] = compute_ratio_of_frame_with_droplets(droplets_statistics, grouped_stats)
 
-        features['average_speed'] = compute_weighted_mean_speed(grouped_stats, dish_info, dish_diameter_mm, frame_per_seconds)
+    features['average_speed'] = compute_weighted_mean_speed(grouped_stats, dish_info, dish_diameter_mm, frame_per_seconds)
 
-        features['average_spread'] = compute_center_of_mass_spread(high_level_frame_stats, dish_info, dish_diameter_mm)
+    features['average_spread'] = compute_center_of_mass_spread(high_level_frame_stats, dish_info, dish_diameter_mm)
 
-        features['average_perimeter_variation'] = compute_relative_perimeter_variation(grouped_stats)
+    features['average_perimeter_variation'] = compute_relative_perimeter_variation(grouped_stats)
 
-        features['average_area'] = compute_average_drolet_area(grouped_stats, dish_info, dish_diameter_mm)
+    features['average_area'] = compute_average_drolet_area(grouped_stats, dish_info, dish_diameter_mm)
 
-        features['average_deformation'] = compute_average_deformation(grouped_stats)
+    features['average_deformation'] = compute_average_deformation(grouped_stats)
 
-        if features_out is not None:
-            with open(features_out, 'w') as f:
-                json.dump(features, f)
+    if features_out is not None:
+        with open(features_out, 'w') as f:
+            json.dump(features, f)
 
-        if verbose:
-            print '###\nFinished processing droplet info {}.'.format(droplet_info_filename)
+    if verbose:
+        print '###\nFinished processing droplet info {}.'.format(droplet_info_filename)
 
-        return features
+    return features

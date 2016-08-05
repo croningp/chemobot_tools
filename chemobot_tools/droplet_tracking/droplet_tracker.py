@@ -1,5 +1,6 @@
 import os
 import json
+import time
 
 import cv2
 
@@ -69,6 +70,8 @@ DEFAULT_PROCESS_CONFIG = {
 
 
 def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_out=None, droplet_info_out=None, dish_info_out=None, debug=False, deep_debug=False, verbose=False, debug_window_name='droplet_detection'):
+
+    start_time = time.time()
 
     if verbose:
         print '###\nProcessing video {} ...'.format(video_filename)
@@ -162,7 +165,9 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
          for _ in range(10):  # ensure it kills the window
              cv2.waitKey(WAITKEY_TIME)
 
+    elapsed = time.time() - start_time
+
     if verbose:
-        print '###\nFinished processing video {}.'.format(video_filename)
+        print '###\nFinished processing video {} in {} seconds.'.format(video_filename, elapsed)
 
     return droplet_info

@@ -8,7 +8,9 @@ WAITKEY_TIME = 1
 
 DEFAULT_DISH_CONFIG = {
     'minDist': np.inf,
-    'hough_config': {}
+    'hough_config': {},
+    'dish_center': None,
+    'dish_radius': None
 }
 
 def find_petri_dish(frame, config=DEFAULT_DISH_CONFIG, debug=False):
@@ -24,6 +26,14 @@ def find_petri_dish(frame, config=DEFAULT_DISH_CONFIG, debug=False):
 
     dish_circle = circles[0][0]  # out in order of accumulator, first is best
     # [x, y, radius]
+
+    # apply constraints
+    if config['dish_center'] is not None:
+        dish_circle[0] = config['dish_center'][0]
+        dish_circle[1] = config['dish_center'][1]
+
+    if config['dish_radius'] is not None:
+        dish_circle[2] = config['dish_radius']
 
     # we define a mask for the dish
     dish_mask = np.zeros((frame.shape[0], frame.shape[1]), np.uint8)
@@ -89,19 +99,6 @@ def circle_to_mask(circle, shape):
     mask = np.zeros(shape, np.uint8)
     cv2.circle(mask, (circle[0], circle[1]), int(circle[2]), 255, -1)  # white, filled circle
     return mask
-
-
-def circle_and_mask_from_dish_info(dish_info, frame):
-
-    mask_shape = (frame.shape[0], frame.shape[1])
-
-    dish_circle = dish_info['dish_circle']
-    dish_mask = circle_to_mask(dish_circle, mask_shape)
-
-    arena_circle = dish_info['arena_circle']
-    arena_mask = circle_to_mask(arena_circle, mask_shape)
-
-    return dish_circle, dish_mask, arena_circle, arena_mask
 
 
 DEFAULT_CANNY_CONFIG = {

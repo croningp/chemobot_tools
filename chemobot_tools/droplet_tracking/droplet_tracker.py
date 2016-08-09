@@ -18,16 +18,12 @@ DEFAULT_FRAME_CONFIG = {
 }
 
 
-def detect_droplet_frame(frame, droplet_classifier, config=DEFAULT_FRAME_CONFIG, class_name='droplet', dish_info=None, debug=False, deep_debug=False):
+def detect_droplet_frame(frame, droplet_classifier, config=DEFAULT_FRAME_CONFIG, class_name='droplet', debug=False, deep_debug=False):
 
     # dish detection
-    if dish_info is None:
-        dish_circle, dish_mask = tools.find_petri_dish(frame, config=config['dish_detect_config'], debug=deep_debug)
+    dish_circle, dish_mask = tools.find_petri_dish(frame, config=config['dish_detect_config'], debug=deep_debug)
 
-        arena_circle, arena_mask = tools.create_dish_arena(dish_circle, dish_mask, config['arena_ratio'])
-
-    else:
-        dish_circle, dish_mask, arena_circle, arena_mask = tools.circle_and_mask_from_dish_info(dish_info, frame)
+    arena_circle, arena_mask = tools.create_dish_arena(dish_circle, dish_mask, config['arena_ratio'])
 
     # hypothesis making
     # canny
@@ -59,7 +55,7 @@ def draw_frame_detection(frame, dish_circle, arena_circle, droplet_contours):
 
 DEFAULT_PROCESS_CONFIG = {
     'dish_detect_config': tools.DEFAULT_DISH_CONFIG,
-    'dish_frame_spacing': 1,
+    'dish_frame_spacing': 20,
     'arena_ratio': 0.85,
     'canny_hypothesis_config': tools.DEFAULT_CANNY_HYPOTHESIS_CONFIG,
     'hough_hypothesis_config': tools.DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG,
@@ -73,7 +69,7 @@ DEFAULT_PROCESS_CONFIG = {
 }
 
 
-def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_out=None, droplet_info_out=None, dish_info_in=None, dish_info_out=None, debug=False, deep_debug=False, verbose=False, debug_window_name='droplet_detection'):
+def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_out=None, droplet_info_out=None, dish_info_out=None, debug=False, deep_debug=False, verbose=False, debug_window_name='droplet_detection'):
 
     start_time = time.time()
 
@@ -83,24 +79,10 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
     droplet_info = []
     droplet_info_list = []
 
-    # dish info
-    if dish_info_in is None:
-        # dish detection accross frame
-        dish_circle, dish_mask = tools.get_median_dish_from_video(video_filename, process_config['dish_detect_config'], frame_spacing=process_config['dish_frame_spacing'])
+    # dish detection accross frame
+    dish_circle, dish_mask = tools.get_median_dish_from_video(video_filename, process_config['dish_detect_config'], frame_spacing=process_config['dish_frame_spacing'])
 
-        arena_circle, arena_mask = tools.create_dish_arena(dish_circle, dish_mask, process_config['arena_ratio'])
-
-    else:
-        video_capture = cv2.VideoCapture(video_filename)
-        ret, frame = video_capture.read()
-
-        if not ret:
-            raise Exception('Problem opening video file!')
-
-        dish_circle, dish_mask, arena_circle, arena_mask = tools.circle_and_mask_from_dish_info(dish_info_in, frame)
-
-        video_capture.release()
-
+    arena_circle, arena_mask = tools.create_dish_arena(dish_circle, dish_mask, process_config['arena_ratio'])
 
     # save dish info
     if dish_info_out is not None:

@@ -2,21 +2,25 @@ import time
 
 import filetools
 
-from chemobot_tools.droplet_tracking.droplet_tracker import process_video
+from chemobot_tools.droplet_tracking.droplet_tracker import process_video, DEFAULT_PROCESS_CONFIG
 from chemobot_tools.droplet_tracking.pool_workers import PoolDropletTracker, create_default_tracker_config_from_folder
-
 
 if __name__ == '__main__':
 
     # sequential
     start_time = time.time()
 
-    dish_info_in = {
-        "dish_circle": [320, 235, 180],
-        "arena_circle": [320, 235, 150]
+    import copy
+    import numpy as np
+    process_config = copy.deepcopy(DEFAULT_PROCESS_CONFIG)
+    process_config['dish_detect_config'] = {
+        'minDist': np.inf,
+        'hough_config': {},
+        'dish_center': None,
+        'dish_radius': 180
     }
 
-    droplet_info = process_video('videos/06/video.avi', dish_info_in=dish_info_in, debug=True, deep_debug=True)
+    droplet_info = process_video('videos/02/video.avi', process_config=process_config, debug=True, deep_debug=True)
 
     elapsed = time.time() - start_time
     print 'It took {} seconds to analyse one video'.format(elapsed)

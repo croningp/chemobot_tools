@@ -49,8 +49,7 @@ def get_median_dish_from_video(video_filename, config=DEFAULT_DISH_CONFIG, frame
     video_capture = cv2.VideoCapture(video_filename)
     ret, frame = video_capture.read()
 
-    # we define an empty mask for the dish
-    median_dish_mask = np.zeros((frame.shape[0], frame.shape[1]), np.uint8)
+    mask_shape = (frame.shape[0], frame.shape[1])
 
     dish_circles = []
     while ret:
@@ -64,7 +63,7 @@ def get_median_dish_from_video(video_filename, config=DEFAULT_DISH_CONFIG, frame
     median_dish_circle = np.median(dish_circles, axis=0)
 
     # populate the mask
-    cv2.circle(median_dish_mask, (median_dish_circle[0], median_dish_circle[1]), int(median_dish_circle[2]), 255, -1)  # white, filled circle
+    median_dish_mask = circle_to_mask(median_dish_circle, mask_shape)
 
     return list(median_dish_circle), median_dish_mask
 
@@ -74,8 +73,7 @@ def create_dish_arena(dish_circle, dish_mask, arena_dish_ratio=0.9, debug=False)
     arena_circle = list(dish_circle)
     arena_circle[2] = dish_circle[2] * arena_dish_ratio
 
-    arena_mask = np.zeros(dish_mask.shape, np.uint8)
-    cv2.circle(arena_mask, (arena_circle[0], arena_circle[1]), int(arena_circle[2]), 255, -1)  # white, filled circle
+    arena_mask = circle_to_mask(arena_circle, dish_mask.shape)
 
     if debug:
         # draw the mask
@@ -85,6 +83,25 @@ def create_dish_arena(dish_circle, dish_mask, arena_dish_ratio=0.9, debug=False)
         cv2.waitKey(WAITKEY_TIME)
 
     return arena_circle, arena_mask
+
+
+def circle_to_mask(circle, shape):
+    mask = np.zeros(shape, np.uint8)
+    cv2.circle(mask, (circle[0], circle[1]), int(circle[2]), 255, -1)  # white, filled circle
+    return mask
+
+
+def circle_and_mask_from_dish_info(dish_info, frame):
+
+    mask_shape = (frame.shape[0], frame.shape[1])
+
+    dish_circle = dish_info['dish_circle']
+    dish_mask = circle_to_mask(dish_circle, mask_shape)
+
+    arena_circle = dish_info['arena_circle']
+    arena_mask = circle_to_mask(arena_circle, mask_shape)
+
+    return dish_circle, dish_mask, arena_circle, arena_mask
 
 
 DEFAULT_CANNY_CONFIG = {

@@ -87,6 +87,7 @@ def create_default_tracker_config_from_folder(foldername, debug=True):
         'process_config': DEFAULT_PROCESS_CONFIG,
         'video_out': os.path.join(foldername, 'video_analysed.avi'),
         'droplet_info_out': os.path.join(foldername, 'droplet_info.json'),
+        'dish_info_in': None,
         'dish_info_out': os.path.join(foldername, 'dish_info.json'),
         'debug': debug,
         'debug_window_name': os.path.basename(foldername),

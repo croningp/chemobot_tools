@@ -393,12 +393,13 @@ def square_to_droplet_hypothesis(square, frame, mask=None, width_ratio=1.5):
         # we define a mask from the contour taken using an automatic threshold method
         mask = np.zeros((frame.shape[0], frame.shape[1]), np.uint8)
 
-        threshold_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # we go to hsv, we want to differentiate colors from bacground that is white, we do thresholding on the saturation taken as a gray scale image
+        hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        threshold_img = hsv_img[:, :, 1]  # we take the saturation only
 
-        _, threshold_mask = cv2.threshold(threshold_img, np.min(threshold_img), np.max(threshold_img), cv2.THRESH_OTSU)
-
-        threshold_mask[threshold_mask > 0] = 255
-        threshold_mask = cv2.bitwise_not(threshold_mask)
+        # Otsu's thresholding after Gaussian filtering
+        blur = cv2.GaussianBlur(threshold_img, (5, 5), 0)
+        _, threshold_mask = cv2.threshold(blur, np.min(blur), np.max(blur), cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 
         mask[y-shift:y+shift, x-shift:x+shift] = threshold_mask[:, :]
 
@@ -432,9 +433,7 @@ def canny_droplet_hypotheses(frame, detect_mask=None, config=DEFAULT_CANNY_HYPOT
 
     droplet_mask = canny_droplet_detector(frame, mask=detect_mask, config=config['canny_config'], debug=debug)
 
-    watershed_droplet_mask = watershed(droplet_mask, debug=debug)
-
-    hypotheses = mask_droplet_hypotheses(frame, watershed_droplet_mask, width_ratio=config['width_ratio'], debug=debug)
+    hypotheses = mask_droplet_hypotheses(frame, droplet_mask, width_ratio=config['width_ratio'], debug=debug)
 
     return hypotheses
 
@@ -523,11 +522,8 @@ def hypotheses_to_droplet_contours(frame, hypotheses, config=DEFAULT_HYPOTHESIS_
                 y2 = int(square[1] + shift)
                 cv2.rectangle(hypothesis_frame, (x1, y1), (x2, y2), color, 1)
 
-        # watershed
-        watershed_droplet_mask = watershed(droplet_mask)
-
         # contours
-        droplet_contours, _ = cv2.findContours(watershed_droplet_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        droplet_contours, _ = cv2.findContours(droplet_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
         if debug:
             cv2.imshow('hypotheses', hypothesis_frame)
@@ -541,3 +537,33 @@ def hypotheses_to_droplet_contours(frame, hypotheses, config=DEFAULT_HYPOTHESIS_
             cv2.waitKey(WAITKEY_TIME)
 
         return droplet_contours
+
+
+def clean_contours_outside_arena(droplet_contours, arena_circle):
+
+    valid_contours = []
+
+    arena_center = np.array(arena_circle[0:2])
+    arena_radius = arena_circle[2]
+
+    for contour in droplet_contours:
+
+        contour_center = None
+        # error are usually raised for too small contours
+        # they will be discared
+        try:
+            M = cv2.moments(contour)
+            centroid_x = int(M['m10'] / M['m00'])
+            centroid_y = int(M['m01'] / M['m00'])
+            contour_center = np.array([centroid_x, centroid_y])
+        except:
+            continue
+
+        if contour_center is not None:
+            # if centroid within arena add to the valid contour
+            delta_center = arena_center - contour_center
+            dist_center = np.linalg.norm(delta_center)
+            if dist_center < arena_radius:
+                valid_contours.append(contour)
+
+    return valid_contours

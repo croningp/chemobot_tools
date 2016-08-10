@@ -11,7 +11,7 @@ WAITKEY_TIME = 1
 
 DEFAULT_FRAME_CONFIG = {
     'dish_detect_config': tools.DEFAULT_DISH_CONFIG,
-    'arena_ratio': 0.85,
+    'arena_ratio': 0.8,
     'canny_hypothesis_config': tools.DEFAULT_CANNY_HYPOTHESIS_CONFIG,
     'hough_hypothesis_config': tools.DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG,
     'blob_hypothesis_config': tools.DEFAULT_DROPLET_BLOB_HYPOTHESIS_CONFIG,
@@ -36,12 +36,15 @@ def detect_droplet_frame(frame, droplet_classifier, config=DEFAULT_FRAME_CONFIG,
     # hypothesis solving
     droplet_contours = tools.hypotheses_to_droplet_contours(frame, hypotheses, droplet_classifier, class_name=class_name, debug=deep_debug)
 
+    # removing non valid contour outside arena
+    valid_droplet_contours = tools.clean_contours_outside_arena(droplet_contours, arena_circle)
+
     if debug:
-        plot_frame = draw_frame_detection(frame, dish_circle, arena_circle, droplet_contours)
+        plot_frame = draw_frame_detection(frame, dish_circle, arena_circle, valid_droplet_contours)
         cv2.imshow("droplet_detection", plot_frame)
         cv2.waitKey(WAITKEY_TIME)
 
-    return droplet_contours
+    return valid_droplet_contours
 
 
 def draw_frame_detection(frame, dish_circle, arena_circle, droplet_contours):
@@ -56,13 +59,13 @@ def draw_frame_detection(frame, dish_circle, arena_circle, droplet_contours):
 DEFAULT_PROCESS_CONFIG = {
     'dish_detect_config': tools.DEFAULT_DISH_CONFIG,
     'dish_frame_spacing': 20,
-    'arena_ratio': 0.85,
+    'arena_ratio': 0.8,
     'canny_hypothesis_config': tools.DEFAULT_CANNY_HYPOTHESIS_CONFIG,
     'hough_hypothesis_config': tools.DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG,
     'blob_hypothesis_config': tools.DEFAULT_DROPLET_BLOB_HYPOTHESIS_CONFIG,
     'mog_hypothesis_config': {
         'learning_rate': 0.005,
-        'delay_by_n_frame': 50,
+        'delay_by_n_frame': 100,
         'width_ratio': 1.5
     },
     'resolve_hypothesis_config': tools.DEFAULT_HYPOTHESIS_CONFIG
@@ -123,24 +126,27 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
         backsub_mask = backsub.apply(frame, None, backsub_learning_rate)
         backsub_mask = cv2.bitwise_and(backsub_mask, arena_mask)
 
+        if frame_count > backsub_delay:  # apply only after backsub_delay
+            hypotheses += tools.mask_droplet_hypotheses(frame, backsub_mask, width_ratio=backsub_width_ratio, debug=deep_debug)
+
         if deep_debug:
             cv2.imshow("backsub_mask", backsub_mask)
             cv2.waitKey(WAITKEY_TIME)
 
-        if frame_count > backsub_delay:  # apply only after backsub_delay
-            watershed_backsub_mask = tools.watershed(backsub_mask)
-            hypotheses += tools.mask_droplet_hypotheses(frame, backsub_mask, width_ratio=backsub_width_ratio, debug=deep_debug)
-
         # hypothesis solving
         droplet_contours = tools.hypotheses_to_droplet_contours(frame, hypotheses, config=process_config['resolve_hypothesis_config'], debug=deep_debug)
 
+        # removing non valid contour outside arena
+        valid_droplet_contours = tools.clean_contours_outside_arena(droplet_contours, arena_circle)
+
         # storing
-        droplet_info.append(droplet_contours)
-        droplet_info_list.append(tools.contours_to_list(droplet_contours))
+        droplet_info.append(valid_droplet_contours)
+        droplet_info_list.append(tools.contours_to_list(valid_droplet_contours))
 
         # plot
         if debug or video_out is not None:
-            plot_frame = draw_frame_detection(frame, dish_circle, arena_circle, droplet_contours)
+
+            plot_frame = draw_frame_detection(frame, dish_circle, arena_circle, valid_droplet_contours)
 
             if video_out is not None:
                 video_writer.write(plot_frame)
@@ -148,6 +154,11 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
             if debug:
                 cv2.imshow(debug_window_name, plot_frame)
                 cv2.waitKey(WAITKEY_TIME)
+
+        if deep_debug:
+            plot_frame_droplet_contours = draw_frame_detection(frame, dish_circle, arena_circle, droplet_contours)
+            cv2.imshow('raw_droplet_contours', plot_frame_droplet_contours)
+            cv2.waitKey(WAITKEY_TIME)
 
         # next frame
         ret, frame = video_capture.read()

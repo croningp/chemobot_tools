@@ -51,7 +51,7 @@ def statistics_from_frame_countours(contours):
             equi_diameter = np.sqrt(4 * area / np.pi)
 
             _, radius = cv2.minEnclosingCircle(contour)
-            center, (MA, ma), angle = cv2.fitEllipse(contour)
+            _, (MA, ma), angle = cv2.fitEllipse(contour)
 
             x, y, w, h = cv2.boundingRect(contour)
             aspect_ratio = float(w) / h
@@ -73,7 +73,7 @@ def statistics_from_frame_countours(contours):
 
         # save
         stats = {
-            'position': center,
+            'position': (centroid_x, centroid_y),
             'bounding_rect': (x, y, w, h),
             'perimeter': perimeter,
             'area': area,
@@ -87,8 +87,8 @@ def statistics_from_frame_countours(contours):
             'compactness': compactness,
             'modification_ratio': modification_ratio,
             'moments': M,
-            'centroid': (centroid_x, centroid_y),
-            'ellipse_angle': angle
+            'ellipse_angle': angle,
+            'contour': contour
         }
 
         frame_stats.append(stats)
@@ -374,8 +374,10 @@ def generate_tracking_info_frame(frame, frame_count, grouped_stats, debug=True, 
             y = int(drop_pos[1])
 
             cv2.putText(plot_frame, drop_id, (x, y), font, 0.75, (255,255,255), 2)
-            cv2.line(plot_frame, (x-5, y), (x+5, y), (0,255,0))
-            cv2.line(plot_frame, (x, y-5), (x, y+5), (0,255,0))
+            cv2.line(plot_frame, (x-5, y), (x+5, y), (255,0,0))
+            cv2.line(plot_frame, (x, y-5), (x, y+5), (255,0,0))
+
+            cv2.drawContours(plot_frame, drop_stats['contour'][frame_index], -1, (0, 255, 0))
 
     if debug:
         cv2.imshow(debug_window_name, plot_frame)

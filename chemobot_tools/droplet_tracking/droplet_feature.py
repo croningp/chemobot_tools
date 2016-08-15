@@ -34,7 +34,7 @@ def load_dish_info(filename):
     return load_json(filename)
 
 
-def statistics_from_frame_countours(contours):
+def statistics_from_frame_countours(contours, min_droplet_radius):
 
     frame_stats = []
 
@@ -71,6 +71,10 @@ def statistics_from_frame_countours(contours):
         except:
             continue
 
+        # radius should be >= min_droplet_radius
+        if radius < min_droplet_radius:
+            continue
+
         # save
         stats = {
             'position': (centroid_x, centroid_y),
@@ -96,12 +100,12 @@ def statistics_from_frame_countours(contours):
     return frame_stats
 
 
-def statistics_from_video_countours(droplet_info):
+def statistics_from_video_countours(droplet_info, min_droplet_radius=5):
 
     droplets_statistics = []
 
     for contours in droplet_info:
-        droplets_statistics.append(statistics_from_frame_countours(contours))
+        droplets_statistics.append(statistics_from_frame_countours(contours, min_droplet_radius=min_droplet_radius))
     return droplets_statistics
 
 
@@ -342,13 +346,13 @@ def compute_high_level_frame_descriptor(droplets_statistics):
     return high_level_frame_stats
 
 
-def aggregate_droplet_info(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, join_min_frame_dist=1, join_max_frame_dist=20):
+def aggregate_droplet_info(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, join_min_frame_dist=1, join_max_frame_dist=20, min_droplet_radius=5):
 
     # getting basic info
     dish_info = load_dish_info(dish_info_filename)
     droplet_info = load_video_contours_json(droplet_info_filename)
 
-    droplets_statistics = statistics_from_video_countours(droplet_info)
+    droplets_statistics = statistics_from_video_countours(droplet_info, min_droplet_radius=min_droplet_radius)
     high_level_frame_stats = compute_high_level_frame_descriptor(droplets_statistics)
 
     droplets_ids = track_droplets(droplets_statistics, max_distance=max_distance_tracking)
@@ -524,7 +528,7 @@ def compute_median_absolute_circularity_deviation(grouped_stats):
 
 ### ALL
 
-def compute_droplet_features(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, join_min_frame_dist=1, join_max_frame_dist=10, dish_diameter_mm=32, frame_per_seconds=20, features_out=None, video_in=None,  video_out=None, debug=False, debug_window_name='droplet_sequence', verbose=False):
+def compute_droplet_features(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, join_min_frame_dist=1, join_max_frame_dist=10, min_droplet_radius=5, dish_diameter_mm=32, frame_per_seconds=20, features_out=None, video_in=None,  video_out=None, debug=False, debug_window_name='droplet_sequence', verbose=False):
 
     start_time = time.time()
 

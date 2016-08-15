@@ -428,7 +428,7 @@ def compute_ratio_of_frame_with_droplets(droplets_statistics, grouped_stats):
     for stats in grouped_stats:
         frame_ids += stats['frame_id']
 
-    n_frame_with_droplet = len(set(frame_ids))  # set find unique value in frame_ids
+    n_frame_with_droplet = len(set(frame_ids))  # set() finds unique value in frame_ids
 
     # ratio between 0 and 1
     return float(n_frame_with_droplet) / len(droplets_statistics)
@@ -503,17 +503,22 @@ def compute_average_circularity(grouped_stats):
     return np.average(means, weights=weights)
 
 
-def compute_average_circularity_variation(grouped_stats):
-
-    stds = [np.std(stats['form_factor']) for stats in grouped_stats]
+def compute_median_absolute_circularity_deviation(grouped_stats):
 
     weights = [len(stats['form_factor']) for stats in grouped_stats]
 
     if len(weights) == 0:
         return 0
 
-    # std circularity
-    return np.average(stds, weights=weights)
+    medians = [np.median(stats['form_factor']) for stats in grouped_stats]
+
+    mads = []
+    for i, stats in enumerate(grouped_stats):
+        abs_deviations = np.abs(stats['form_factor'] - medians[i])
+        mads.append(np.median(abs_deviations))
+
+    # weigthed mean MAD (median absolute deviation) circularity
+    return np.average(mads, weights=weights)
 
 
 
@@ -545,7 +550,7 @@ def compute_droplet_features(dish_info_filename, droplet_info_filename, max_dist
 
     features['average_circularity'] = compute_average_circularity(grouped_stats)
 
-    features['average_circularity_variation'] = compute_average_circularity_variation(grouped_stats)
+    features['median_absolute_circularity_deviation'] = compute_median_absolute_circularity_deviation(grouped_stats)
 
     if features_out is not None:
         with open(features_out, 'w') as f:

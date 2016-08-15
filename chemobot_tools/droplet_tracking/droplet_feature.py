@@ -536,7 +536,8 @@ def compute_droplet_features(dish_info_filename, droplet_info_filename, max_dist
         print '###\nExtracting features from {} ...'.format(droplet_info_filename)
 
     # getting basic info
-    dish_info, droplets_statistics, high_level_frame_stats, droplets_ids, grouped_stats = aggregate_droplet_info(dish_info_filename, droplet_info_filename, max_distance_tracking=max_distance_tracking, min_sequence_length=min_sequence_length, join_min_frame_dist=join_min_frame_dist, join_max_frame_dist=join_max_frame_dist)
+    dish_info, droplets_statistics, high_level_frame_stats, droplets_ids, grouped_stats = aggregate_droplet_info(dish_info_filename, droplet_info_filename, max_distance_tracking=max_distance_tracking, min_sequence_length=min_sequence_length, join_min_frame_dist=join_min_frame_dist, join_max_frame_dist=join_max_frame_dist,
+    min_droplet_radius=min_droplet_radius)
 
     #
     generate_tracking_info_video(video_in, grouped_stats, video_out=video_out, debug=debug, debug_window_name=debug_window_name)

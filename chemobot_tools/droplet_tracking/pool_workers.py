@@ -124,6 +124,7 @@ def create_default_features_config_from_folder(foldername, debug=True):
         'min_sequence_length': 20,
         'join_min_frame_dist': 1,
         'join_max_frame_dist': 10,
+        'min_droplet_radius': 5,
         'dish_diameter_mm': 32,
         'frame_per_seconds': 20,
         'features_out': os.path.join(foldername, 'droplet_features.json'),

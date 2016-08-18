@@ -126,12 +126,13 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
         backsub_mask = backsub.apply(frame, None, backsub_learning_rate)
         backsub_mask = cv2.bitwise_and(backsub_mask, arena_mask)
 
-        if frame_count > backsub_delay:  # apply only after backsub_delay
-            hypotheses += tools.mask_droplet_hypotheses(frame, backsub_mask, width_ratio=backsub_width_ratio, debug=deep_debug)
-
         if deep_debug:
+            # show mask before it get modified
             cv2.imshow("backsub_mask", backsub_mask)
             cv2.waitKey(WAITKEY_TIME)
+
+        if frame_count > backsub_delay:  # apply only after backsub_delay
+            hypotheses += tools.mask_droplet_hypotheses(frame, backsub_mask, width_ratio=backsub_width_ratio, debug=deep_debug)
 
         # hypothesis solving
         droplet_contours = tools.hypotheses_to_droplet_contours(frame, hypotheses, config=process_config['resolve_hypothesis_config'], debug=deep_debug)

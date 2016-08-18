@@ -522,16 +522,19 @@ def hypotheses_to_droplet_contours(frame, hypotheses, config=DEFAULT_HYPOTHESIS_
                 y2 = int(square[1] + shift)
                 cv2.rectangle(hypothesis_frame, (x1, y1), (x2, y2), color, 1)
 
+
+        if debug:
+            cv2.imshow('hypotheses', hypothesis_frame)
+            # show the mask before contour function plays with it
+            cv2.imshow('hypotheses_droplet_mask', droplet_mask)
+
         # contours
         droplet_contours, _ = cv2.findContours(droplet_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
         if debug:
-            cv2.imshow('hypotheses', hypothesis_frame)
-            cv2.imshow('droplet_mask', droplet_mask)
-
             contour_frame = frame.copy()
             cv2.drawContours(contour_frame, droplet_contours, -1, (0, 255, 0))
-            cv2.imshow('droplet_contours', contour_frame)
+            cv2.imshow('hypotheses_droplet_contours', contour_frame)
 
             # wait to display
             cv2.waitKey(WAITKEY_TIME)

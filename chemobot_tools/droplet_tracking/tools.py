@@ -23,6 +23,8 @@ def find_petri_dish(frame, config=DEFAULT_DISH_CONFIG, debug=False):
     while circles is None:
         dp += 1
         circles = cv2.HoughCircles(gray_frame, cv2.cv.CV_HOUGH_GRADIENT, dp, config['minDist'], **config['hough_config'])
+        if dp > 10:
+            return None, None
 
     dish_circle = circles[0][0]  # out in order of accumulator, first is best
     # [x, y, radius]
@@ -64,7 +66,8 @@ def get_median_dish_from_video(video_filename, config=DEFAULT_DISH_CONFIG, frame
     dish_circles = []
     while ret:
         dish_circle, _ = find_petri_dish(frame, config=config)
-        dish_circles.append(dish_circle)
+        if dish_circle is not None:
+            dish_circles.append(dish_circle)
         for _ in range(frame_spacing):
             if ret:
                 ret, frame = video_capture.read()

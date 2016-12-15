@@ -20,7 +20,10 @@ if __name__ == '__main__':
         'dish_radius': 180
     }
 
-    droplet_info = process_video('videos/02/video.avi', process_config=process_config, debug=True, deep_debug=True)
+    videofilename = '/home/group/orkney1/0-Images/Laurie Points/LJP4-28/For Jonathan/2 Minute Videos/29.35 mm/C/My Movie 2.mp4'
+    video_out = '/home/group/orkney1/0-Images/Laurie Points/LJP4-28/For Jonathan/2 Minute Videos/29.35 mm/C/analysed2.avi'
+
+    droplet_info = process_video(videofilename, process_config=process_config, video_out=video_out, debug=True, deep_debug=False)
 
     elapsed = time.time() - start_time
     print 'It took {} seconds to analyse one video'.format(elapsed)

@@ -5,9 +5,9 @@ import multiprocessing
 
 from collections import deque
 
-from .droplet_tracker import DEFAULT_PROCESS_CONFIG
-from .droplet_tracker import process_video
-from .droplet_feature import compute_droplet_features
+import droplet_tracker
+import droplet_feature
+import simple_droplet_tracker
 
 SLEEP_TIME = 0.1
 
@@ -84,7 +84,7 @@ class PoolTemplate(threading.Thread):
 def create_default_tracker_config_from_folder(foldername, debug=True):
     tracker_config = {
         'video_filename': os.path.join(foldername, 'video.avi'),
-        'process_config': DEFAULT_PROCESS_CONFIG,
+        'process_config': droplet_tracker.DEFAULT_PROCESS_CONFIG,
         'video_out': os.path.join(foldername, 'video_analysed.avi'),
         'droplet_info_out': os.path.join(foldername, 'droplet_info.json'),
         'dish_info_out': os.path.join(foldername, 'dish_info.json'),
@@ -105,7 +105,7 @@ class PoolDropletTracker(PoolTemplate):
             kwds: a dict of named arguments
         """
 
-        func = process_video
+        func = droplet_tracker.process_video
 
         video_filename = config['video_filename']
         del config['video_filename']
@@ -147,7 +147,7 @@ class PoolDropletFeatures(PoolTemplate):
             kwds: a dict of named arguments
         """
 
-        func = compute_droplet_features
+        func = droplet_feature.compute_droplet_features
 
         dish_info_filename = config['dish_info_filename']
         del config['dish_info_filename']
@@ -156,6 +156,41 @@ class PoolDropletFeatures(PoolTemplate):
         del config['droplet_info_filename']
 
         args = (dish_info_filename, droplet_info_filename)
+        kwds = config
+
+        return func, args, kwds
+
+
+def create_default_simple_tracker_config_from_folder(foldername, debug=True):
+    tracker_config = {
+        'video_filename': os.path.join(foldername, 'video.avi'),
+        'process_config': simple_droplet_tracker.DEFAULT_PROCESS_CONFIG,
+        'video_out': os.path.join(foldername, 'video_analysed.avi'),
+        'droplet_info_out': os.path.join(foldername, 'droplet_info.json'),
+        'dish_info_out': os.path.join(foldername, 'dish_info.json'),
+        'debug': debug,
+        'debug_window_name': os.path.basename(foldername),
+        'verbose': True
+    }
+    return tracker_config
+
+
+class PoolSimpleDropletTracker(PoolTemplate):
+
+    def handle_config(self, config):
+        """
+            To implement for your need
+            func: a function to be run in the pool
+            args: tuple of argument (arg1, arg2, )
+            kwds: a dict of named arguments
+        """
+
+        func = simple_droplet_tracker.process_video
+
+        video_filename = config['video_filename']
+        del config['video_filename']
+
+        args = (video_filename, )
         kwds = config
 
         return func, args, kwds

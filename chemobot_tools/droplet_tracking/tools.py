@@ -1,9 +1,19 @@
 import numpy as np
+from scipy.stats import norm
 from scipy.ndimage import label
 
 import cv2
 
 WAITKEY_TIME = 1
+
+
+def draw_frame_detection(frame, dish_circle, arena_circle, droplet_contours):
+    # draw the dish circle
+    plot_frame = frame.copy()
+    cv2.circle(plot_frame, (dish_circle[0], dish_circle[1]), int(dish_circle[2]), (0, 0, 255), 3)
+    cv2.circle(plot_frame, (arena_circle[0], arena_circle[1]), int(arena_circle[2]), (255, 0, 0), 3)
+    cv2.drawContours(plot_frame, droplet_contours, -1, (0, 255, 0))
+    return plot_frame
 
 
 DEFAULT_DISH_CONFIG = {
@@ -485,14 +495,6 @@ DEFAULT_HYPOTHESIS_CONFIG = {
 }
 
 
-from ..droplet_classification import DEFAULT_DROPLET_CLASSIFIER
-
-DEFAULT_HYPOTHESIS_CONFIG = {
-    'droplet_classifier': DEFAULT_DROPLET_CLASSIFIER,
-    'class_name': 'droplet'
-}
-
-
 def hypotheses_to_droplet_contours(frame, hypotheses, config=DEFAULT_HYPOTHESIS_CONFIG, debug=False):
 
         #read config
@@ -570,3 +572,116 @@ def clean_contours_outside_arena(droplet_contours, arena_circle):
                 valid_contours.append(contour)
 
     return valid_contours
+
+
+def binarize_frame(frame, threshold, mask=None, backgroud_intensity=None, debug=False):
+
+    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blured_frame = cv2.GaussianBlur(gray_frame, (5, 5), 0)
+
+    if mask is not None:
+        #foreground
+        foreground = cv2.bitwise_or(blured_frame, blured_frame, mask=mask)
+        # get second masked value (background) mask must be inverted
+        if backgroud_intensity is None:
+            backgroud_intensity = np.median(blured_frame)
+        mask_inv = cv2.bitwise_not(mask)
+        background = np.full(blured_frame.shape, backgroud_intensity, dtype=np.uint8)
+        background = cv2.bitwise_or(background, background, mask=mask_inv)
+
+        blured_frame = cv2.bitwise_or(foreground, background)
+
+    _, droplet_mask = cv2.threshold(blured_frame, threshold, 255, cv2.THRESH_BINARY_INV)
+
+    if debug:
+        cv2.imshow('video', frame)
+        cv2.waitKey(1)
+
+        cv2.imshow('processed', blured_frame)
+        cv2.waitKey(1)
+
+        cv2.imshow('droplet_mask', droplet_mask)
+        cv2.waitKey(1)
+
+    return droplet_mask
+
+
+DEFAULT_BINARIZATION_THRESHOLD_CONFIG = {
+    'cut_proba': 0.001,
+    'spectrum_filename': None
+}
+
+
+def compute_frame_binarization_threshold(gray_frame, mask=None, config=DEFAULT_BINARIZATION_THRESHOLD_CONFIG):
+    # we compute the histogram of intensities within the masked region
+    # this should be representative of the background gray
+    # we cpmpute the mean and variance of this average histogram
+    # we define a threshold as when the left tail account for cut_proba of the Gaussian
+    #
+    if mask is not None:
+        mask_bool = np.array(mask, dtype='bool')
+        to_process_frame = gray_frame[mask_bool].ravel()
+    else:
+        to_process_frame = gray_frame.ravel()
+
+    # compute mean and std of histogram
+    hist_data, bins = np.histogram(to_process_frame, np.arange(256))
+    positions = bins[:-1] + np.diff(bins)/2.0
+    mu = np.average(positions, weights=hist_data)
+    sigma = np.sqrt(np.average((positions-mu)**2, weights=hist_data))
+    threshold = int(round(norm.ppf(config['cut_proba'], mu, sigma)))
+
+    # plot if requested
+    if 'spectrum_filename' in config:
+        if config['spectrum_filename'] is not None:
+
+            import matplotlib
+            import matplotlib.pyplot as plt
+
+            # design figure
+            fontsize = 22
+            matplotlib.rc('xtick', labelsize=20)
+            matplotlib.rc('ytick', labelsize=20)
+            matplotlib.rcParams.update({'font.size': fontsize})
+
+            ##
+            fig = plt.figure(figsize=(12,8))
+            plt.plot(positions, hist_data, 'b')
+
+            y_pdf = norm.pdf(positions, mu, sigma)
+            y_pdf = y_pdf / np.max(y_pdf) * np.max(hist_data)
+            plt.plot(positions, y_pdf, 'r--', linewidth=2)
+
+            plt.plot([threshold, threshold], [0, np.max(hist_data)], 'g')
+
+            plt.legend(['Mean Histogram', 'Gaussian fit', 'Threshold: {}'.format(threshold)], loc='best', fontsize=22)
+            plt.xlabel('Intensity', fontsize=22)
+            plt.ylabel('Pixel Count', fontsize=22)
+
+            plt.savefig(config['spectrum_filename'], dpi=100)
+            plt.close(fig)
+
+    return threshold, mu, sigma
+
+
+def compute_avg_gray_frame(video_filename):
+    # we compute the average gray scale image across the all video
+    # this smooth out the droplet and leave the background
+    video_capture = cv2.VideoCapture(video_filename)
+    ret, frame = video_capture.read()
+
+    sum_frame = np.zeros((frame.shape[0], frame.shape[1]))
+    frame_count = 0
+    while ret:
+        frame_count += 1
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        sum_frame = sum_frame + gray_frame
+        ret, frame = video_capture.read()
+    video_capture.release()
+
+    return np.array(sum_frame/float(frame_count), dtype='uint8')
+
+
+def compute_video_binarization_threshold(video_filename, mask=None, config=DEFAULT_BINARIZATION_THRESHOLD_CONFIG):
+    avg_gray_frame = compute_avg_gray_frame(video_filename)
+    return compute_frame_binarization_threshold(avg_gray_frame, mask=mask, config=config)

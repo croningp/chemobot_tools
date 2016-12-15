@@ -3,6 +3,7 @@ Thumbs.db
 chemobot_tools.egg-info
 
 *.avi
+*.png
 *droplet_info.json
 *dish_info.json
 *params.json

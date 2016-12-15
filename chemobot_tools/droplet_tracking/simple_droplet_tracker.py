@@ -8,33 +8,28 @@ import tools
 
 WAITKEY_TIME = 1
 
-
 DEFAULT_FRAME_CONFIG = {
     'dish_detect_config': tools.DEFAULT_DISH_CONFIG,
     'arena_ratio': 0.8,
-    'canny_hypothesis_config': tools.DEFAULT_CANNY_HYPOTHESIS_CONFIG,
-    'hough_hypothesis_config': tools.DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG,
-    'blob_hypothesis_config': tools.DEFAULT_DROPLET_BLOB_HYPOTHESIS_CONFIG,
+    'binarization_threshold_config': tools.DEFAULT_BINARIZATION_THRESHOLD_CONFIG
 }
 
 
-def detect_droplet_frame(frame, droplet_classifier, config=DEFAULT_FRAME_CONFIG, class_name='droplet', debug=False, deep_debug=False):
+def detect_droplet_frame(frame, config=DEFAULT_FRAME_CONFIG, debug=True, deep_debug=False):
 
     # dish detection
     dish_circle, dish_mask = tools.find_petri_dish(frame, config=config['dish_detect_config'], debug=deep_debug)
 
     arena_circle, arena_mask = tools.create_dish_arena(dish_circle, dish_mask, config['arena_ratio'])
 
-    # hypothesis making
-    # canny
-    hypotheses = tools.canny_droplet_hypotheses(frame, detect_mask=arena_mask, config=process_config['canny_hypothesis_config'], debug=deep_debug)
-    # hough
-    hypotheses += tools.hough_droplet_hypotheses(frame, detect_circle=arena_circle, config=process_config['hough_hypothesis_config'], debug=deep_debug)
-    # blob
-    hypotheses += tools.blob_droplet_hypotheses(frame, detect_circle=arena_circle, config=process_config['blob_hypothesis_config'], debug=deep_debug)
+    # threshold
+    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    threshold, _, _ = tools.compute_frame_binarization_threshold(gray_frame, mask=dish_mask, config=config['binarization_threshold_config'])
 
-    # hypothesis solving
-    droplet_contours = tools.hypotheses_to_droplet_contours(frame, hypotheses, droplet_classifier, class_name=class_name, debug=deep_debug)
+    # find mask an countour
+    droplet_mask = tools.binarize_frame(frame, threshold, mask=dish_mask, debug=deep_debug)
+
+    droplet_contours, _ = cv2.findContours(droplet_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
     # removing non valid contour outside arena
     valid_droplet_contours = tools.clean_contours_outside_arena(droplet_contours, arena_circle)
@@ -47,19 +42,12 @@ def detect_droplet_frame(frame, droplet_classifier, config=DEFAULT_FRAME_CONFIG,
     return valid_droplet_contours
 
 
+
 DEFAULT_PROCESS_CONFIG = {
     'dish_detect_config': tools.DEFAULT_DISH_CONFIG,
     'dish_frame_spacing': 20,
     'arena_ratio': 0.8,
-    'canny_hypothesis_config': tools.DEFAULT_CANNY_HYPOTHESIS_CONFIG,
-    'hough_hypothesis_config': tools.DEFAULT_DROPLET_HOUGH_HYPOTHESIS_CONFIG,
-    'blob_hypothesis_config': tools.DEFAULT_DROPLET_BLOB_HYPOTHESIS_CONFIG,
-    'mog_hypothesis_config': {
-        'learning_rate': 0.005,
-        'delay_by_n_frame': 100,
-        'width_ratio': 1.5
-    },
-    'resolve_hypothesis_config': tools.DEFAULT_HYPOTHESIS_CONFIG
+    'binarization_threshold_config': tools.DEFAULT_BINARIZATION_THRESHOLD_CONFIG
 }
 
 
@@ -86,6 +74,9 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
         with open(dish_info_out, 'w') as f:
             json.dump(dish_info, f)
 
+    # compute bonarization threshold based on full video
+    threshold, mu, sigma = tools.compute_video_binarization_threshold(video_filename, dish_mask, process_config['binarization_threshold_config'])
+
     # open video to play with frames
     video_capture = cv2.VideoCapture(video_filename)
     ret, frame = video_capture.read()
@@ -96,38 +87,15 @@ def process_video(video_filename, process_config=DEFAULT_PROCESS_CONFIG, video_o
         fps = 20
         video_writer = cv2.VideoWriter(video_out, video_format, fps, (frame.shape[1], frame.shape[0]))
 
-    # prepare BackgroundSubtractorMOG
-    backsub = cv2.BackgroundSubtractorMOG()
-    backsub_learning_rate = process_config['mog_hypothesis_config']['learning_rate']
-    backsub_delay = process_config['mog_hypothesis_config']['delay_by_n_frame']
-    backsub_width_ratio = process_config['mog_hypothesis_config']['width_ratio']
-
     frame_count = 0
     while ret:
         frame_count += 1
 
-        # hypothesis making
-        # canny
-        hypotheses = tools.canny_droplet_hypotheses(frame, detect_mask=arena_mask, config=process_config['canny_hypothesis_config'], debug=deep_debug)
-        # hough
-        hypotheses += tools.hough_droplet_hypotheses(frame, detect_circle=arena_circle, config=process_config['hough_hypothesis_config'], debug=deep_debug)
-        # blob
-        hypotheses += tools.blob_droplet_hypotheses(frame, detect_circle=arena_circle, config=process_config['blob_hypothesis_config'], debug=deep_debug)
-        # background suppression
-        backsub_mask = backsub.apply(frame, None, backsub_learning_rate)
-        backsub_mask = cv2.bitwise_and(backsub_mask, arena_mask)
-
-        if deep_debug:
-            # show mask before it get modified
-            cv2.imshow("backsub_mask", backsub_mask)
-            cv2.waitKey(WAITKEY_TIME)
-
-        if frame_count > backsub_delay:  # apply only after backsub_delay
-            hypotheses += tools.mask_droplet_hypotheses(frame, backsub_mask, width_ratio=backsub_width_ratio, debug=deep_debug)
-
-        # hypothesis solving
-        droplet_contours = tools.hypotheses_to_droplet_contours(frame, hypotheses, config=process_config['resolve_hypothesis_config'], debug=deep_debug)
-
+        #detect dark region below threshold
+        # we use dish mask here and then we trim the contour to arena_mask
+        droplet_mask = tools.binarize_frame(frame, threshold, mask=dish_mask, backgroud_intensity=mu, debug=deep_debug)
+        #extract contours
+        droplet_contours, _ = cv2.findContours(droplet_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         # removing non valid contour outside arena
         valid_droplet_contours = tools.clean_contours_outside_arena(droplet_contours, arena_circle)
 

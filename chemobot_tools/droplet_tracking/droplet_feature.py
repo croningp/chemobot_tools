@@ -364,11 +364,15 @@ def aggregate_droplet_info(dish_info_filename, droplet_info_filename, max_distan
 ### VISU GROUPING
 
 
-def generate_tracking_info_frame(frame, frame_count, grouped_stats, debug=True, debug_window_name='droplet_sequence'):
+def generate_tracking_info_frame(frame, frame_count, droplets_statistics, grouped_stats, debug=True, debug_window_name='droplet_sequence'):
 
     font = cv2.FONT_HERSHEY_SIMPLEX
 
     plot_frame = frame.copy()
+
+    for drop_info in droplets_statistics[frame_count]:
+        cv2.drawContours(plot_frame, drop_info['contour'], -1, (0, 0, 255))
+
     for i, drop_stats in enumerate(grouped_stats):
         if frame_count in drop_stats['frame_id']:
             frame_index = drop_stats['frame_id'].index(frame_count)
@@ -390,7 +394,7 @@ def generate_tracking_info_frame(frame, frame_count, grouped_stats, debug=True, 
     return plot_frame
 
 
-def generate_tracking_info_video(video_filename, grouped_stats, video_out=None, pause=False, debug=True, debug_window_name='droplet_sequence'):
+def generate_tracking_info_video(video_filename, droplets_statistics, grouped_stats, video_out=None, pause=False, debug=True, debug_window_name='droplet_sequence'):
     # open video to play with frames
     video_capture = cv2.VideoCapture(video_filename)
     ret, frame = video_capture.read()
@@ -403,7 +407,7 @@ def generate_tracking_info_video(video_filename, grouped_stats, video_out=None, 
 
     frame_count = 0
     while ret:
-        plot_frame = generate_tracking_info_frame(frame, frame_count, grouped_stats, debug=debug, debug_window_name=debug_window_name)
+        plot_frame = generate_tracking_info_frame(frame, frame_count, droplets_statistics, grouped_stats, debug=debug, debug_window_name=debug_window_name)
 
         if video_out is not None:
             video_writer.write(plot_frame)
@@ -539,8 +543,10 @@ def compute_droplet_features(dish_info_filename, droplet_info_filename, max_dist
     dish_info, droplets_statistics, high_level_frame_stats, droplets_ids, grouped_stats = aggregate_droplet_info(dish_info_filename, droplet_info_filename, max_distance_tracking=max_distance_tracking, min_sequence_length=min_sequence_length, join_min_frame_dist=join_min_frame_dist, join_max_frame_dist=join_max_frame_dist,
     min_droplet_radius=min_droplet_radius)
 
+    print droplets_statistics
+
     #
-    generate_tracking_info_video(video_in, grouped_stats, video_out=video_out, debug=debug, debug_window_name=debug_window_name)
+    generate_tracking_info_video(video_in, droplets_statistics, grouped_stats, video_out=video_out, debug=debug, debug_window_name=debug_window_name)
 
     #
     features = {}

@@ -8,6 +8,8 @@ import numpy as np
 from scipy.spatial.distance import cdist
 
 from .tools import list_to_contours
+from .tools import contour_to_mask
+from .tools import circle_to_mask
 
 WAITKEY_TIME = 1
 
@@ -358,20 +360,23 @@ def aggregate_droplet_info(dish_info_filename, droplet_info_filename, max_distan
     droplets_ids = track_droplets(droplets_statistics, max_distance=max_distance_tracking)
     grouped_stats = group_stats_per_droplets_ids(droplets_statistics, droplets_ids, min_sequence_length=min_sequence_length, min_frame_dist=join_min_frame_dist, max_frame_dist=join_max_frame_dist, max_position_dist=max_distance_tracking)
 
-    return dish_info, droplets_statistics, high_level_frame_stats, droplets_ids, grouped_stats
+    return dish_info, droplet_info, droplets_statistics, high_level_frame_stats, droplets_ids, grouped_stats
 
 
 ### VISU GROUPING
 
 
-def generate_tracking_info_frame(frame, frame_count, droplets_statistics, grouped_stats, debug=True, debug_window_name='droplet_sequence'):
+def generate_tracking_info_frame(frame, frame_count, droplet_info, droplets_statistics, grouped_stats, debug=True, debug_window_name='droplet_sequence'):
 
     font = cv2.FONT_HERSHEY_SIMPLEX
 
     plot_frame = frame.copy()
 
+    for drop_contour in droplet_info[frame_count]:
+        cv2.drawContours(plot_frame, drop_contour, -1, (0, 0, 255))
+
     for drop_info in droplets_statistics[frame_count]:
-        cv2.drawContours(plot_frame, drop_info['contour'], -1, (0, 0, 255))
+        cv2.drawContours(plot_frame, drop_info['contour'], -1, (255, 0, 0))
 
     for i, drop_stats in enumerate(grouped_stats):
         if frame_count in drop_stats['frame_id']:
@@ -394,7 +399,7 @@ def generate_tracking_info_frame(frame, frame_count, droplets_statistics, groupe
     return plot_frame
 
 
-def generate_tracking_info_video(video_filename, droplets_statistics, grouped_stats, video_out=None, pause=False, debug=True, debug_window_name='droplet_sequence'):
+def generate_tracking_info_video(video_filename, droplet_info, droplets_statistics, grouped_stats, video_out=None, pause=False, debug=True, debug_window_name='droplet_sequence'):
     # open video to play with frames
     video_capture = cv2.VideoCapture(video_filename)
     ret, frame = video_capture.read()
@@ -407,7 +412,7 @@ def generate_tracking_info_video(video_filename, droplets_statistics, grouped_st
 
     frame_count = 0
     while ret:
-        plot_frame = generate_tracking_info_frame(frame, frame_count, droplets_statistics, grouped_stats, debug=debug, debug_window_name=debug_window_name)
+        plot_frame = generate_tracking_info_frame(frame, frame_count, droplet_info, droplets_statistics, grouped_stats, debug=debug, debug_window_name=debug_window_name)
 
         if video_out is not None:
             video_writer.write(plot_frame)
@@ -529,6 +534,88 @@ def compute_median_absolute_circularity_deviation(grouped_stats):
     return np.average(mads, weights=weights)
 
 
+def compute_average_number_of_droplet_per_frame(droplets_ids):
+    return np.mean([len(d) for d in droplets_ids])
+
+
+def compute_average_number_of_droplet_per_frame_last_second(droplets_ids, frame_per_seconds):
+    # avg number of droplet at the last second of the video
+    return np.mean([len(d) for d in droplets_ids[-frame_per_seconds:]])
+
+
+def compute_max_droplet_speed(grouped_stats, dish_info, dish_diameter_mm, frame_per_seconds):
+    # max of the tracked droplet speed found (in mm/s)
+    mean_speed_pixel_per_frame = [np.mean(g['speed']) for g in grouped_stats]
+
+    if len(mean_speed_pixel_per_frame) == 0:
+        return 0
+
+    max_mean_speed_pixel_per_frame = np.max(mean_speed_pixel_per_frame)
+
+    dish_diameter_pixel = 2 * dish_info['dish_circle'][2]
+
+    # return in mm/s
+    return max_mean_speed_pixel_per_frame / dish_diameter_pixel * dish_diameter_mm * frame_per_seconds
+
+
+def compute_total_droplet_path_length(grouped_stats, dish_info, dish_diameter_mm):
+    # total distance travelled by the droplets in mm
+    dist_travelled_pixel_per_droplet = [np.sum(g['speed']) for g in grouped_stats]
+
+    if len(dist_travelled_pixel_per_droplet) == 0:
+        return 0
+
+    total_dist_travelled_pixel = np.sum(dist_travelled_pixel_per_droplet)
+
+    dish_diameter_pixel = 2 * dish_info['dish_circle'][2]
+
+    # return in mm
+    return total_dist_travelled_pixel / dish_diameter_pixel * dish_diameter_mm
+
+
+def compute_covered_arena_area(video_filename, droplets_statistics, dish_info, debug=False):
+    ## this use the selected droplets as pencil
+    # we simply create a join mask between all the detected droplets
+    # and compute the painted arena area ratio
+
+    # open video to play with frames
+    video_capture = cv2.VideoCapture(video_filename)
+    ret, frame = video_capture.read()
+    video_capture.release()
+
+    #
+    dish_circle = [int(xyr) for xyr in dish_info['dish_circle']]
+    arena_circle = [int(xyr) for xyr in dish_info['arena_circle']]
+
+    #
+    arena_mask = circle_to_mask(arena_circle, (frame.shape[0], frame.shape[1]))
+    droplet_mask = np.zeros((frame.shape[0], frame.shape[1]), np.uint8)
+
+    for drop_stats in droplets_statistics:
+        for drop_info in drop_stats:
+            mask = contour_to_mask(drop_info['contour'], droplet_mask)
+            droplet_mask = cv2.bitwise_or(droplet_mask, mask)
+
+        if debug:
+            plot_frame = cv2.cvtColor(droplet_mask, cv2.COLOR_GRAY2RGB)
+            cv2.circle(plot_frame, (dish_circle[0], dish_circle[1]), int(dish_circle[2]), (0, 0, 255), 3)
+            cv2.circle(plot_frame, (arena_circle[0], arena_circle[1]), int(arena_circle[2]), (255, 0, 0), 3)
+            cv2.imshow('total_mask', plot_frame)
+            cv2.waitKey(WAITKEY_TIME)
+
+    if debug:
+         cv2.destroyWindow('total_mask')
+         for _ in range(10):  # ensure it kills the window
+             cv2.waitKey(WAITKEY_TIME)
+
+    # trim the edges to get only what is inside the arena
+    droplet_mask_trimmed = cv2.bitwise_and(droplet_mask, arena_mask)
+    area_droplet_pixel = np.count_nonzero(droplet_mask_trimmed)
+
+    area_arena_pixel = np.count_nonzero(arena_mask)
+    ## return is a ratio
+    return area_droplet_pixel/float(area_arena_pixel)
+
 
 ### ALL
 
@@ -540,13 +627,11 @@ def compute_droplet_features(dish_info_filename, droplet_info_filename, max_dist
         print '###\nExtracting features from {} ...'.format(droplet_info_filename)
 
     # getting basic info
-    dish_info, droplets_statistics, high_level_frame_stats, droplets_ids, grouped_stats = aggregate_droplet_info(dish_info_filename, droplet_info_filename, max_distance_tracking=max_distance_tracking, min_sequence_length=min_sequence_length, join_min_frame_dist=join_min_frame_dist, join_max_frame_dist=join_max_frame_dist,
+    dish_info, droplet_info, droplets_statistics, high_level_frame_stats, droplets_ids, grouped_stats = aggregate_droplet_info(dish_info_filename, droplet_info_filename, max_distance_tracking=max_distance_tracking, min_sequence_length=min_sequence_length, join_min_frame_dist=join_min_frame_dist, join_max_frame_dist=join_max_frame_dist,
     min_droplet_radius=min_droplet_radius)
 
-    print droplets_statistics
-
     #
-    generate_tracking_info_video(video_in, droplets_statistics, grouped_stats, video_out=video_out, debug=debug, debug_window_name=debug_window_name)
+    generate_tracking_info_video(video_in, droplet_info, droplets_statistics, grouped_stats, video_out=video_out, debug=debug, debug_window_name=debug_window_name)
 
     #
     features = {}
@@ -562,6 +647,16 @@ def compute_droplet_features(dish_info_filename, droplet_info_filename, max_dist
     features['average_circularity'] = compute_average_circularity(grouped_stats)
 
     features['median_absolute_circularity_deviation'] = compute_median_absolute_circularity_deviation(grouped_stats)
+
+    features['average_number_of_droplets'] = compute_average_number_of_droplet_per_frame(droplets_ids)
+
+    features['average_number_of_droplets_last_second'] = compute_average_number_of_droplet_per_frame_last_second(droplets_ids, frame_per_seconds)
+
+    features['max_average_single_droplet_speed'] = compute_max_droplet_speed(grouped_stats, dish_info, dish_diameter_mm, frame_per_seconds)
+
+    features['total_droplet_path_length'] = compute_total_droplet_path_length(grouped_stats, dish_info, dish_diameter_mm)
+
+    features['covered_arena_area'] = compute_covered_arena_area(video_in, droplets_statistics, dish_info, debug=False)
 
     if features_out is not None:
         with open(features_out, 'w') as f:

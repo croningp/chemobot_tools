@@ -619,7 +619,7 @@ def compute_covered_arena_area(video_filename, droplets_statistics, dish_info, d
 
 ### ALL
 
-def compute_droplet_features(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, join_min_frame_dist=1, join_max_frame_dist=10, min_droplet_radius=5, dish_diameter_mm=32, frame_per_seconds=20, features_out=None, video_in=None,  video_out=None, debug=False, debug_window_name='droplet_sequence', verbose=False):
+def compute_droplet_features(dish_info_filename, droplet_info_filename, max_distance_tracking=40, min_sequence_length=20, join_min_frame_dist=1, join_max_frame_dist=10, min_droplet_radius=5, dish_diameter_mm=32, frame_per_seconds=20, features_out=None, video_in=None,  video_out=None, no_video=False, debug=False, debug_window_name='droplet_sequence', verbose=False):
 
     start_time = time.time()
 
@@ -631,7 +631,8 @@ def compute_droplet_features(dish_info_filename, droplet_info_filename, max_dist
     min_droplet_radius=min_droplet_radius)
 
     #
-    generate_tracking_info_video(video_in, droplet_info, droplets_statistics, grouped_stats, video_out=video_out, debug=debug, debug_window_name=debug_window_name)
+    if not no_video:
+        generate_tracking_info_video(video_in, droplet_info, droplets_statistics, grouped_stats, video_out=video_out, debug=debug, debug_window_name=debug_window_name)
 
     #
     features = {}

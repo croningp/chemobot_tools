@@ -12,3 +12,6 @@ chemobot_tools.egg-info
 *features.json
 /examples/droplet_vision/extracted
 /examples/droplet_vision/labelled
+
+/build
+/dist

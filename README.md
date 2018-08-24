@@ -1,17 +1,17 @@
-## chemobot_tools
+# chemobot_tools
 
 This is a collection of tools for chemorobotic platform used in the Cronin Group.
 
 Each functionality comes with an example files in the examples folder. To test the examples, first download and install the library: ```python setup.py install``` with appropriate rights. The go to the examples directory and follow the examples.
 
-### video_recorder
+## video_recorder
 
 video_recorder allows to record a video from a webcam into a file asynchronously. This mean you can keep doing things while the video is recorded.
 
 [[Example and tutorial]](examples/video_recorder/demo.py)
 
 
-### v4l2
+## v4l2
 
 v4l2 is a simple python library to make system call to v4l2-ctl.
 
@@ -28,8 +28,16 @@ This tool allow to start an experiment with always the same webcam config, this 
 
 [[Example and tutorial]](examples/v4l2/demo.py)
 
-### droplet_tracking
+## droplet_tracking
 
 droplet_tracking is a serie of tool to analyse image and video of droplets
 
 - label_video is a tool to annotate video of droplet. [[Code Example]](examples/droplet_tracking/demo_label_video.py) [[Commands docs](docs/label_video_commands.md)]
+
+## Authors
+
+[Jonathan Grizou](http://www.chem.gla.ac.uk/cronin/members/Jonathan/) while working in the [Cronin Group](http://www.chem.gla.ac.uk/cronin/).
+
+## License
+
+[![GPL V3](https://www.gnu.org/graphics/gplv3-127x51.png)](https://www.gnu.org/licenses/gpl.html)
